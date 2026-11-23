@@ -483,19 +483,22 @@
 
   <header class="header">
     <div class="eyebrow">Ficha técnica · modelo dbt</div>
-    <h1>fnl_cdp_tariffchangesaudience_pii</h1>
+    <h1>fnl_cdp_accounts_pii</h1>
     <p class="lede">
-      Una fila por cuenta en su primer cambio de tarifa. Alimenta la activación de Segment/Twilio
-      para el journey de cambio de tarifa del CDP, combinando atributos de la cuenta, comparación
-      de consumo horario y comparación de precio antes/después del cambio.
+      Una fila por cuenta de la audiencia abierta del CDP OEES (electricidad con
+      <code>opted_in_to_offers</code>). Expone atributos de cuenta, engagement app/web/email,
+      comparación de consumo y de precio. Segment filtra por use case
+      (<code>n_tariff_changes</code>, <code>days_on_supply</code>, <code>supplypoint_status</code>,
+      <code>has_bad_debt_1_30d</code>, etc.). El PII de titular vive en
+      <code>fnl_cdp_users_pii</code>; el sync a Segment usa <code>export_cdp_accounts_pii</code>.
     </p>
     <div class="stats">
       <div class="stat"><span class="k">Capa</span><span class="v">final · tabla Delta</span></div>
       <div class="stat"><span class="k">Grano</span><span class="v">1 fila / cuenta</span></div>
       <div class="stat"><span class="k">Actualización</span><span class="v">diaria</span></div>
       <div class="stat"><span class="k">Acceso</span><span class="v">público</span></div>
-      <div class="stat"><span class="k">Datos sensibles</span><span class="v">sí · PII</span></div>
-      <div class="stat"><span class="k">Columnas</span><span class="v" id="stat-total">169</span></div>
+      <div class="stat"><span class="k">Datos sensibles</span><span class="v">sí · address</span></div>
+      <div class="stat"><span class="k">Columnas</span><span class="v" id="stat-total">163</span></div>
     </div>
   </header>
 
@@ -540,7 +543,7 @@
   </div>
 
   <footer class="meta">
-    projects/oees/models/consumer/final/customer_data_platform · owners: luis.miralles@octoenergy.com, marta.juanes@octopusenergy.es
+    projects/oees/models/consumer/final/customer_data_platform/fnl_cdp_accounts_pii · owners: luis.miralles@octoenergy.com, marta.juanes@octopusenergy.es
   </footer>
 
 </div>
@@ -552,26 +555,22 @@
    ============================================================ */
 const DATA = [
 {
-  id:"identificadores", title:"Identificadores", cte:"audience · user_identifier · SELECT final",
-  intro:"Claves de la fila. La clave primaria se genera en este mismo SELECT.",
+  id:"identificadores", title:"Identificadores", cte:"wh_cdp_audience_pii · user_identifier",
+  intro:"Claves de la fila. La clave primaria del modelo final es account_id.",
   rows:[
-    { names:["tariffchangeaudience_id"], calc:1, type:"STRING", desc:"<p>Clave primaria de la fila (surrogate key).</p>",
-      formula:"generate_surrogate_key(account_id, supplypoint_status, target_invoice_interval_start, target_invoice_interval_end)" },
-    { names:["account_id"], calc:0, type:"BIGINT", desc:"<p>Identificador único de la cuenta.</p>" },
-    { names:["user_id"], calc:1, type:"STRING", desc:"<p>Identificador de usuario de Segment del titular. Si hay varios titulares, se usa el rol actualizado más recientemente.</p>",
-      formula:"'es_' || account_user_id  (del titular más reciente)" },
+    { names:["account_id"], calc:0, type:"BIGINT", desc:"<p>Clave primaria. Identificador único de la cuenta en la audiencia abierta del CDP.</p>" },
+    { names:["user_id"], calc:1, type:"STRING", desc:"<p>Identificador de usuario de Segment del titular (<code>es_</code> + account_user_id). Si hay varios titulares, se usa el rol ACCOUNT_HOLDER creado más recientemente. Nombre/email/móvil de ese titular están en <code>fnl_cdp_users_pii</code>.</p>",
+      formula:"'es_' || account_user_id (del titular más reciente)" },
   ]
 },
 {
-  id:"suministro", title:"Suministro y contrato", cte:"audience",
-  intro:"Atributos de la cuenta y del punto de suministro, sin transformar.",
+  id:"suministro", title:"Suministro y contrato", cte:"wh_cdp_audience",
+  intro:"Atributos de la cuenta y del punto de suministro. Segment filtra por estos campos según el use case.",
   rows:[
-    { names:["cups"], calc:0, type:"STRING", desc:"<p>CUPS más reciente asociado a la cuenta, derivado de la última factura.</p>" },
-    { names:["supplypoint_status"], calc:0, type:"STRING", desc:"<p>Estado actual del punto de suministro: <code>ON_SUPPLY</code>, <code>LOST</code> o <code>WITHDRAWN</code>.</p>" },
+    { names:["cups"], calc:0, type:"STRING", desc:"<p>CUPS más reciente asociado a la cuenta, derivado de la última factura. En multi-CUPS, las métricas de consumo/precio del account usan el CUPS dominante (mayor impacto).</p>" },
+    { names:["supplypoint_status"], calc:0, type:"STRING", desc:"<p>Estado actual del punto de suministro (p. ej. ON_SUPPLY, LOST). Segment filtra por use case; el warehouse ya no limita la audiencia a un solo estado.</p>" },
     { names:["tariff_type"], calc:0, type:"STRING", desc:"<p>Tipo de tarifa actual de la cuenta.</p>" },
     { names:["days_on_supply"], calc:0, type:"BIGINT", desc:"<p>Días que la cuenta lleva de alta en suministro.</p>" },
-    { names:["period_on_supply"], calc:1, type:"STRING", desc:"<p>Bucket de antigüedad. Todas las filas de este modelo caen en <code>study_period</code> (31-180 días).</p>",
-      formula:"CASE days_on_supply WHEN ≤30 '1_month' WHEN 31-180 'study_period' ELSE 'out_of_range'" },
     { names:["sales_channel"], calc:0, type:"STRING", desc:"<p>Canal de venta por el que se adquirió la cuenta.</p>" },
     { names:["sales_subchannel"], calc:0, type:"STRING", desc:"<p>Subcanal o fuente concreta de captación dentro del canal.</p>" },
     { names:["is_referral"], calc:1, type:"BOOLEAN", desc:"<p>Si el subcanal indica que la cuenta vino por referido.</p>", formula:"sales_subchannel ILIKE 'referral%'" },
@@ -580,202 +579,196 @@ const DATA = [
   ]
 },
 {
-  id:"senales-cambio", title:"Señales del cambio de tarifa", cte:"audience · consumption",
-  intro:"Fechas y tarifas del cambio, y de la factura objetivo: la primera ya con la tarifa nueva que cubre más de 20 días. Una factura de transición más corta no cuenta como factura objetivo.",
+  id:"senales-cambio", title:"Señales del cambio de tarifa", cte:"wh_cdp_audience · consumption",
+  intro:"Fechas y tarifas del cambio, y de la factura objetivo: la primera ya con la tarifa nueva que cubre más de 20 días. Una factura de transición más corta no cuenta como factura objetivo. Los cálculos de engagement/consumo/precio se anclan en el PRIMER cambio (first_tariff_change_date), aunque la cuenta tenga más cambios después.",
   rows:[
-    { names:["n_tariff_changes"], calc:0, type:"BIGINT", desc:"<p>Número de cambios de tarifa a mitad de contrato. Siempre <code>1</code> en este modelo — es el filtro de audiencia.</p>" },
-    { names:["first_tariff_change_date"], calc:0, type:"DATE", desc:"<p>Fecha del primer (y único, para esta audiencia) cambio de tarifa.</p>" },
-    { names:["last_tariff_change_date"], calc:0, type:"DATE", desc:"<p>Fecha del cambio más reciente. Igual a <code>first_tariff_change_date</code> en esta audiencia.</p>" },
-    { names:["paceful_email_sent_date"], calc:1, type:"DATE", desc:"<p>Fecha programada del email de aviso del cambio. El margen de un día permite que el cambio se complete antes de confirmárselo al cliente.</p>",
-      formula:"first_tariff_change_date + 1 día  ·  NULL si esa fecha aún es futura", note:"calculada en wh_cdp_tariffchangesaudience" },
-    { names:["n_days_from_first_tariff_change"], calc:1, type:"BIGINT", desc:"<p>Días transcurridos desde el cambio de tarifa hasta hoy.</p>", formula:"DATE_DIFF(hoy, first_tariff_change_date)" },
-    { names:["tariff_before_first_change","product_code_before_first_change"], calc:0, type:"STRING", desc:"<p>Nombre de tarifa y código de producto en los que estaba el cliente justo antes del cambio (p. ej. <code>'OCTOPUS RELAX'</code>).</p>" },
-    { names:["tariff_after_first_change","product_code_after_first_change"], calc:0, type:"STRING", desc:"<p>Nombre de tarifa y código de producto a los que cambió (igual a la tarifa actual, ya que <code>n_tariff_changes = 1</code>).</p>" },
-    { names:["target_invoice_interval_start","target_invoice_interval_end"], calc:0, type:"DATE", desc:"<p>Inicio y fin del periodo de la factura objetivo: la primera facturada ya con la tarifa nueva que cubre más de 20 días. <code>NULL</code> hasta que exista esa factura, aunque ya se haya emitido una más corta (ver <code>has_first_invoice_after_tariffchange</code>).</p>" },
-    { names:["n_days_target_invoice"], calc:0, type:"BIGINT", desc:"<p>Número de días que cubre la factura objetivo. Siempre mayor que 20.</p>" },
-    { names:["n_prev_invoices"], calc:0, type:"BIGINT", desc:"<p>Número de facturas usadas como referencia “antes del cambio” — hasta 3, todas con la tarifa antigua.</p>" },
-    { names:["has_first_invoice_after_tariffchange"], calc:1, type:"BOOLEAN", desc:"<p>Si ya existe <strong>cualquier</strong> factura emitida con la tarifa nueva, sea cual sea su duración: una factura de transición corta (p. ej. 2-3 días) ya lo pone a <code>TRUE</code>. No significa que las columnas de consumo y precio estén rellenas; para eso está <code>has_first_valid_invoice_after_tariffchange</code>.</p>",
-      formula:"primera factura con interval_end_date ≥ first_tariff_change_date" },
-    { names:["has_first_valid_invoice_after_tariffchange"], calc:1, type:"BOOLEAN", desc:"<p>Si la primera factura con la tarifa nueva cubre más de 20 días. Es el filtro antes de fiarse de <code>target_total_kwh</code>, <code>total_pct_change</code>, <code>trigger_consumption_increase</code>, <code>price_after_change_real_eur</code> y el resto de columnas de consumo y precio: siguen en <code>NULL</code> hasta entonces, aunque <code>has_first_invoice_after_tariffchange</code> ya sea <code>TRUE</code>.</p>",
+    { names:["n_tariff_changes"], calc:0, type:"BIGINT", desc:"<p>Número de cambios de tarifa a mitad de contrato. Audiencia abierta: puede ser 0, 1, 2… Segment filtra (p. ej. = 1 para el journey de primer cambio).</p>" },
+    { names:["first_tariff_change_date"], calc:0, type:"DATE", desc:"<p>Fecha del primer cambio de tarifa. Ancla las ventanas before/after de engagement y las comparaciones de consumo/precio. NULL si n_tariff_changes = 0.</p>" },
+    { names:["last_tariff_change_date"], calc:0, type:"DATE", desc:"<p>Fecha del cambio más reciente (metadato). Igual a first_tariff_change_date cuando n_tariff_changes = 1. Ningún cálculo se ancla aún en esta fecha.</p>" },
+    { names:["n_days_from_first_tariff_change"], calc:1, type:"BIGINT", desc:"<p>Días desde first_tariff_change_date hasta la fecha de build del final. En <code>export_cdp_accounts_pii</code> se recalcula en lectura para que Segment vea el valor al día.</p>", formula:"DATE_DIFF(hoy, first_tariff_change_date)" },
+    { names:["tariff_before_first_change","product_code_before_first_change"], calc:0, type:"STRING", desc:"<p>Nombre de tarifa y código de producto justo antes del primer cambio (p. ej. 'OCTOPUS RELAX').</p>" },
+    { names:["tariff_after_first_change","product_code_after_first_change"], calc:0, type:"STRING", desc:"<p>Nombre de tarifa y código de producto al primer cambio. Solo coincide con la tarifa actual si n_tariff_changes = 1; con más cambios posteriores puede diferir.</p>" },
+    { names:["target_invoice_interval_start","target_invoice_interval_end"], calc:0, type:"DATE", desc:"<p>Inicio y fin del periodo de la factura objetivo: la primera facturada ya con la tarifa nueva que cubre más de 20 días. NULL hasta que exista, aunque haya una más corta (ver has_first_invoice_after_tariffchange).</p>" },
+    { names:["n_days_target_invoice"], calc:0, type:"BIGINT", desc:"<p>Días que cubre la factura objetivo. Siempre &gt; 20 cuando está rellena.</p>" },
+    { names:["n_prev_invoices"], calc:0, type:"BIGINT", desc:"<p>Número de facturas usadas como referencia “antes del cambio” — hasta 3, con periodo terminado en o antes de first_tariff_change_date.</p>" },
+    { names:["has_first_invoice_after_tariffchange"], calc:1, type:"BOOLEAN", desc:"<p>Si ya existe cualquier factura emitida con la tarifa nueva, sea cual sea su duración (p. ej. transición de 2-3 días). No implica que consumo/precio real estén rellenos.</p>" },
+    { names:["has_first_valid_invoice_after_tariffchange"], calc:1, type:"BOOLEAN", desc:"<p>Si la primera factura con la tarifa nueva cubre más de 20 días. Filtro antes de fiarse de target_total_kwh, total_pct_change, price_after_change_real_eur, etc.</p>",
       formula:"target_invoice_interval_start IS NOT NULL" },
   ]
 },
 {
-  id:"cambio-consumo", title:"Señales de cambio de consumo", cte:"consumption",
-  intro:"Comparan la factura objetivo (la primera con la tarifa nueva que cubre más de 20 días) contra un baseline: la media ponderada por días de hasta 3 facturas anteriores, facturadas por completo con la tarifa antigua. Llegan calculadas desde wh_cdp_consumptionaudience_aggregated y son NULL hasta que existe esa factura válida.",
+  id:"cambio-consumo", title:"Señales de cambio de consumo", cte:"wh_cdp_consumptionaudience_aggregated",
+  intro:"Comparan la factura objetivo (&gt;20 días con la tarifa nueva) contra un baseline: media diaria de hasta 3 facturas anteriores. NULL hasta que exista esa factura válida.",
   rows:[
-    { names:["has_significant_consumption_change"], calc:1, type:"BOOLEAN", desc:"<p>Si al menos una hora del día supera los dos umbrales de aumento.</p>", formula:"diff_kwh ≥ 0.3 kWh/h/día  Y  variación relativa ≥ 30%" },
+    { names:["has_significant_consumption_change"], calc:1, type:"BOOLEAN", desc:"<p>Si al menos una hora del día supera los dos umbrales de aumento.</p>", formula:"diff_kwh ≥ 0.3 kWh/h/día Y pct_change ≥ 30%" },
     { names:["n_hours_significant_increase"], calc:1, type:"BIGINT", desc:"<p>Número de horas del día que superan esos umbrales.</p>" },
-    { names:["peak_range_start_hour","peak_range_end_hour"], calc:1, type:"BIGINT", desc:"<p>Inicio y fin (0-23) del bloque de horas consecutivas donde se concentra el aumento frente al baseline. <strong>No es el periodo tarifario P1/P2/P3</strong> — un periodo puede abarcar mañana y noche a la vez, así que sus límites no dicen de forma fiable dónde ocurrió el aumento.</p>" },
-    { names:["peak_range_kwh_diff"], calc:1, type:"DOUBLE", desc:"<p>kWh de más (factura objetivo vs. baseline) dentro de ese bloque de horas. Para copy tipo “si mueves X kWh a las horas más baratas…”.</p>" },
-    { names:["peak_range_pct_of_consumption"], calc:1, type:"DOUBLE", desc:"<p>% del consumo total de la factura objetivo que cae en ese bloque. Es composición, no comparación contra el baseline.</p>" },
+    { names:["peak_range_start_hour","peak_range_end_hour"], calc:1, type:"BIGINT", desc:"<p>Inicio y fin (<strong>1–24</strong>, hora de cierre del contador) del bloque de horas consecutivas con subida significativa vs baseline. No es P1/P2/P3. <code>NULL</code> si ninguna hora cumple los umbrales. <strong>Copy:</strong> “tu consumo ha subido sobre todo entre las Ah y las Bh” — no usar para “consumes el X% entre Ah y Bh” (eso es expensive_hours_*).</p>" },
+    { names:["peak_range_kwh_diff"], calc:1, type:"DOUBLE", desc:"<p>kWh de más (objetivo vs baseline) dentro de ese bloque. Copy tipo “si mueves X kWh a las horas más baratas…”.</p>" },
+    { names:["peak_range_pct_of_consumption"], calc:1, type:"DOUBLE", desc:"<p>% del consumo total de la factura objetivo que cae en ese bloque (composición, no vs baseline).</p>" },
     { names:["target_total_kwh"], calc:0, type:"DOUBLE", desc:"<p>Consumo total de la factura objetivo.</p>" },
-    { names:["baseline_total_kwh"], calc:1, type:"DOUBLE", desc:"<p>Consumo esperado en los días de la factura objetivo, según la media diaria ponderada del baseline.</p>" },
+    { names:["baseline_total_kwh"], calc:1, type:"DOUBLE", desc:"<p>Consumo esperado en los días de la factura objetivo, según la media diaria del baseline escalada a n_days_target_invoice.</p>" },
     { names:["total_kwh_diff"], calc:1, type:"DOUBLE", desc:"<p>Diferencia de consumo total.</p>", formula:"target_total_kwh − baseline_total_kwh" },
-    { names:["total_pct_change"], calc:1, type:"DOUBLE", desc:"<p>Variación porcentual del consumo diario. Es el número que dispara <code>trigger_consumption_increase</code>.</p>", formula:"total_kwh_diff / baseline_total_kwh × 100  (tasa diaria)" },
+    { names:["total_pct_change"], calc:1, type:"DOUBLE", desc:"<p>Variación % del consumo diario medio (objetivo vs baseline). Negativa si el ritmo diario del objetivo es menor que el del baseline.</p>", formula:"(avg_kwh_target − avg_kwh_baseline) / avg_kwh_baseline × 100" },
   ]
 },
 {
-  id:"periodos", title:"Consumo por periodo tarifario (P1/P2/P3)", cte:"consumption",
-  intro:"Punta, llano y valle. target_pX_kwh y baseline_pX_kwh están normalizados a los mismos días, así que target − baseline = diff siempre, en cualquier periodo.",
+  id:"periodos", title:"Consumo por periodo tarifario (P1/P2/P3)", cte:"wh_cdp_consumptionhourlycomparison → aggregated",
+  intro:"Punta, llano y valle. target_pX_kwh y baseline_pX_kwh van normalizados a los mismos días (target − baseline = diff). Para copy de franja horaria de gasto actual en caro, usar expensive_hours_*; peak_range_* es otra métrica (subida vs baseline).",
   rows:[
-    { names:["target_p1_kwh","target_p2_kwh","target_p3_kwh"], calc:0, type:"DOUBLE", desc:"<p>kWh facturados en cada periodo de la factura objetivo. <span class='period-row' style='display:inline-flex'><span class='pchip p1'>P1</span> <span class='pchip p2'>P2</span> <span class='pchip p3'>P3</span></span></p>" },
+    { names:["target_p1_kwh","target_p2_kwh","target_p3_kwh"], calc:0, type:"DOUBLE", desc:"<p>kWh facturados en cada periodo de la factura objetivo. <span class='pchip p1'>P1</span> <span class='pchip p2'>P2</span> <span class='pchip p3'>P3</span></p>" },
     { names:["baseline_p1_kwh","baseline_p2_kwh","baseline_p3_kwh"], calc:1, type:"DOUBLE", desc:"<p>Tasa diaria de cada periodo en el baseline, escalada a los días de la factura objetivo.</p>" },
     { names:["diff_p1_kwh","diff_p2_kwh","diff_p3_kwh"], calc:1, type:"DOUBLE", desc:"<p>Diferencia por periodo.</p>", formula:"target_pX_kwh − baseline_pX_kwh" },
-    { names:["pct_change_p1","pct_change_p2","pct_change_p3"], calc:1, type:"DOUBLE", desc:"<p>Variación porcentual por periodo, sobre la tasa diaria.</p>", formula:"diff_pX_kwh / baseline_pX_kwh × 100" },
-    { names:["target_p1_pct","target_p2_pct","target_p3_pct"], calc:1, type:"DOUBLE", desc:"<p>Peso de cada periodo sobre el total de la factura objetivo. Es composición de la factura, no comparación contra el baseline.</p>" },
-    { names:["baseline_p1_pct","baseline_p2_pct","baseline_p3_pct"], calc:1, type:"DOUBLE", desc:"<p>Peso de cada periodo sobre el total del baseline. Útil comparado con <code>target_pX_pct</code>: “tu consumo en punta pasó del X% al Y% de tu factura”.</p>" },
-    { names:["top_consumption_period"], calc:1, type:"BIGINT", desc:"<p>Qué periodo (1, 2 o 3) tiene el mayor % de consumo en la factura objetivo. Composición, no comparación.</p>" },
-    { names:["top_consumption_period_pct"], calc:1, type:"DOUBLE", desc:"<p>% de la factura que corresponde a <code>top_consumption_period</code>.</p>" },
-    { names:["expensive_hours_start_hour"], calc:1, type:"BIGINT", desc:"<p>Hora de inicio (0-23) del único bloque de horas reales de mayor consumo, dentro de punta o de llano — se comparan el mejor tramo de cada uno y gana el que tenga más % del total de la factura (empate: gana punta). Solo mira P1/P2 (valle ya es barato). <strong>No</strong> son “las horas del periodo con más %”: valle también cubre todas las horas de fines de semana y festivos, así que su % no se corresponde con un tramo de horas limpio — este cálculo trabaja directamente sobre el consumo horario real. Antes esta columna era un JSON con hasta 2 tramos (uno de punta y otro de llano); se simplificó a un único tramo porque la comunicación a la que alimenta solo puede mostrar un rango de horas. <code>NULL</code> si ni el tramo ganador llega al 5% del total.</p>" },
-    { names:["expensive_hours_end_hour"], calc:1, type:"BIGINT", desc:"<p>Hora de fin (0-23) de ese mismo tramo ganador.</p>" },
-    { names:["expensive_hours_pct"], calc:1, type:"DOUBLE", desc:"<p>% del total de la factura que representa el tramo ganador (<code>expensive_hours_start_hour</code>–<code>expensive_hours_end_hour</code>).</p>" },
+    { names:["pct_change_p1","pct_change_p2","pct_change_p3"], calc:1, type:"DOUBLE", desc:"<p>Variación % por periodo, sobre la tasa diaria.</p>", formula:"diff_pX_kwh / baseline_pX_kwh × 100" },
+    { names:["target_p1_pct","target_p2_pct","target_p3_pct"], calc:1, type:"DOUBLE", desc:"<p>Peso de cada periodo sobre el total de la factura objetivo (composición).</p>" },
+    { names:["baseline_p1_pct","baseline_p2_pct","baseline_p3_pct"], calc:1, type:"DOUBLE", desc:"<p>Peso de cada periodo sobre el total del baseline. Útil vs target_pX_pct: “tu consumo en punta pasó del X% al Y%”.</p>" },
+    { names:["top_consumption_period"], calc:1, type:"BIGINT", desc:"<p>Periodo (1, 2 o 3) con mayor % de consumo en la factura objetivo. Composición, no vs baseline.</p>" },
+    { names:["top_consumption_period_pct"], calc:1, type:"DOUBLE", desc:"<p>% de la factura que corresponde a top_consumption_period.</p>" },
+    { names:["expensive_hours_start_hour"], calc:1, type:"BIGINT", desc:"<p>Hora de inicio (<strong>1–24</strong>) del único bloque contiguo de mayor consumo real dentro de P1 o P2 (gana el de mayor % del total; empate → P1). Solo P1/P2. <strong>Copy:</strong> “consumes / gastas un X% de luz entre las Ah y las Bh”. <code>NULL</code> si el ganador no llega al 5% del total.</p>" },
+    { names:["expensive_hours_end_hour"], calc:1, type:"BIGINT", desc:"<p>Hora de fin (1–24) de ese tramo ganador.</p>" },
+    { names:["expensive_hours_pct"], calc:1, type:"DOUBLE", desc:"<p>% del total de la factura del tramo ganador (expensive_hours_start_hour – end_hour). Misma condición de NULL.</p>" },
   ]
 },
 {
-  id:"precio", title:"Precio: tarifa antigua vs. nueva", cte:"price_comparison",
-  intro:"Todas a precios de HOY para ambas tarifas — así se aísla el efecto de la estructura tarifaria, sin el ruido de la inflación de precios en el tiempo. Llegan desde wh_cdp_tariffchangepricecomparison. Son NULL para SUN CLUB, Octopus Zero y Octopus Flexi (no tienen tarifa fija por periodos).",
+  id:"precio", title:"Precio: tarifa antigua vs. nueva", cte:"wh_cdp_tariffchangepricecomparison",
+  intro:"La tarifa ANTIGUA se valora con su ÚLTIMO rate conocido (productos descatalogados dejan de publicar rates de hoy). La tarifa NUEVA usa rates de HOY. NULL para SUN CLUB, Octopus Zero y Octopus Flexi (sin fórmula fija por periodos), o si faltan rates / factura válida según la columna.",
   rows:[
-    { names:["price_before_change_eur"], calc:1, type:"DOUBLE", desc:"<p>Precio estimado con la tarifa <strong>antigua</strong>, a precios de hoy, sobre el consumo medio de las hasta 3 facturas antes del cambio. Es una estimación: asume que el patrón de consumo previo se mantiene.</p>" },
-    { names:["price_after_change_eur"], calc:1, type:"DOUBLE", desc:"<p>Precio estimado con la tarifa <strong>nueva</strong>, a precios de hoy, sobre ese mismo consumo de antes del cambio. Sirve para decidir el día 1, sin esperar a la factura real, si el cambio en sí pinta bien.</p>" },
-    { names:["is_tariff_change_cheaper"], calc:1, type:"BOOLEAN", desc:"<p>Si la tarifa nueva sale más barata que la antigua, con el mismo consumo.</p>", formula:"price_after_change_eur < price_before_change_eur" },
-    { names:["price_after_change_real_eur"], calc:1, type:"DOUBLE", desc:"<p>Precio de la tarifa nueva a precios de hoy, pero con el consumo <strong>realmente facturado</strong>. Permite comprobar, una vez hay factura válida (más de 20 días), si el cambio está siendo rentable de verdad — la estimación de arriba asumía que el consumo no cambiaría, y a menudo sí cambia. Compáralo con <code>price_before_change_normalized_eur</code>, no con <code>price_before_change_eur</code>: no tienen la misma base de días. <code>NULL</code> mientras no haya factura válida, o para SUN CLUB, Octopus Zero u Octopus Flexi.</p>" },
-    { names:["price_before_change_normalized_eur"], calc:1, type:"DOUBLE", desc:"<p>Precio estimado de la tarifa antigua, a precios de hoy, usando la tasa diaria del baseline escalada al <strong>mismo número de días</strong> que la factura real. A diferencia de <code>price_before_change_eur</code> (días de una factura media), esta es la pareja correcta de <code>price_after_change_real_eur</code>. Sigue siendo una estimación a partir del baseline, no el precio histórico real. Mismas condiciones de <code>NULL</code> que <code>price_after_change_real_eur</code>.</p>" },
-    { names:["is_tariff_change_cheaper_real"], calc:1, type:"BOOLEAN", desc:"<p>Si el cambio está resultando rentable dado lo que realmente ha pasado con el consumo, comparado sobre los mismos días que la factura real. <code>NULL</code> si falta alguno de los dos precios.</p>", formula:"price_after_change_real_eur < price_before_change_normalized_eur" },
-    { names:["kwh_to_shift_to_p3"], calc:1, type:"DOUBLE", desc:"<p>kWh recomendados mover de punta y llano a valle en la factura real, para abaratarla un poco. <strong>No</strong> es un objetivo de equilibrio para igualar <code>price_before_change_eur</code> — el cambio ya se hizo; solo se trata de reducir la factura de aquí en adelante (mover el 100% no es realista para un hogar).</p>",
+    { names:["price_before_change_eur"], calc:1, type:"DOUBLE", desc:"<p>Precio estimado de una factura media (hasta 3 previas ÷ n_prev_invoices) con la tarifa antigua a su último rate conocido. Estimación: asume que el patrón de consumo previo se mantiene.</p>" },
+    { names:["price_after_change_eur"], calc:1, type:"DOUBLE", desc:"<p>Mismo consumo medio del baseline, con la tarifa nueva a rates de hoy. Sirve el día 1, sin esperar factura real.</p>" },
+    { names:["is_tariff_change_cheaper"], calc:1, type:"BOOLEAN", desc:"<p>Si la tarifa nueva sale más barata que la antigua, mismo consumo estimado.</p>", formula:"price_after_change_eur < price_before_change_eur" },
+    { names:["price_after_change_real_eur"], calc:1, type:"DOUBLE", desc:"<p>Tarifa nueva a rates de hoy con el consumo realmente facturado. Compáralo con price_before_change_normalized_eur (misma base de días), no con price_before_change_eur. NULL sin factura válida o tarifas excluidas.</p>" },
+    { names:["price_before_change_normalized_eur"], calc:1, type:"DOUBLE", desc:"<p>Tarifa antigua (último rate conocido) con el ritmo diario del baseline re-escalado a n_days_target_invoice. Pareja correcta de price_after_change_real_eur. Sigue siendo estimación, no el precio histórico real.</p>" },
+    { names:["is_tariff_change_cheaper_real"], calc:1, type:"BOOLEAN", desc:"<p>Si el cambio resulta rentable con el consumo real, mismos días que la factura objetivo.</p>", formula:"price_after_change_real_eur < price_before_change_normalized_eur" },
+    { names:["kwh_to_shift_to_p3"], calc:1, type:"DOUBLE", desc:"<p>kWh recomendados mover de punta/llano a valle en la factura real (no un breakeven vs price_before). Toda la factura, no una franja horaria.</p>",
       formula:"0.6 × target_p1_kwh + 0.4 × target_p2_kwh" },
-    { names:["savings_from_shift_to_p3_eur"], calc:1, type:"DOUBLE", desc:"<p>Ahorro en € de mover esos kWh a valle, según la diferencia de precio de cada periodo contra valle, a precios de hoy.</p>" },
+    { names:["savings_from_shift_to_p3_eur"], calc:1, type:"DOUBLE", desc:"<p>Ahorro € de ese shift a rates de hoy (gaps vs P3). Escala con el volumen absoluto de P1/P2; no usar solo un umbral € como “mal consumo” Octo3 (combinar con is_octo3_*).</p>" },
   ]
 },
 {
-  id:"calidad-tarifa", title:"Calidad del cambio por tipo de tarifa", cte:"SELECT final (audience + consumption + price_comparison)",
-  intro:"Diagnóstico específico para Octo3 (por periodos) y Relax (tarifa plana) — no aplican a otras tarifas.",
+  id:"calidad-tarifa", title:"Calidad del cambio por tipo de tarifa", cte:"wh_cdp_audience_pii (SELECT final)",
+  intro:"Diagnóstico específico para Octo3 (por periodos) y Relax (tarifa plana). NULL fuera de esas tarifas.",
   rows:[
-    { names:["is_octo3_period_order_good"], calc:1, type:"BOOLEAN", desc:"<p>Solo Octo3. Si el consumo está bien distribuido hacia lo barato.</p>", formula:"target_p3_pct > target_p2_pct > target_p1_pct" },
-    { names:["is_octo3_consumption_well_shifted"], calc:1, type:"BOOLEAN", desc:"<p>Solo Octo3, más estricta que la anterior: el chequeo de orden puede salir <code>TRUE</code> con un margen mínimo (p. ej. P2 apenas por encima de P1) que en realidad no es un buen desplazamiento. Aquí se exige un mínimo absoluto en valle.</p>",
-      formula:"target_p3_pct ≥ 55  (mediana observada en cuentas Octo3, muestra de 30 cuentas, sept. 2026)" },
-    { names:["relax_change_assessment"], calc:1, type:"STRING", desc:"<p>Solo Relax (tarifa plana, el orden de periodos no aplica). Combina si la tarifa en sí fue mejor decisión con si el consumo real cambió. Valores: <code>both_favorable</code> (tarifa más barata y consumo igual o menor), <code>both_unfavorable</code> (tarifa más cara y consumo mayor), <code>tariff_favorable_consumption_up</code> (tarifa más barata pese a consumir más), <code>tariff_unfavorable_consumption_down</code> (tarifa más cara pese a consumir menos).</p>" },
+    { names:["is_octo3_period_order_good"], calc:1, type:"BOOLEAN", desc:"<p>Solo Octo3 (tariff_after_first_change = 'OCTOPUS 3'). Si el mix va hacia lo barato.</p>", formula:"target_p3_pct > target_p2_pct > target_p1_pct" },
+    { names:["is_octo3_consumption_well_shifted"], calc:1, type:"BOOLEAN", desc:"<p>Solo Octo3, más estricta: exige suelo absoluto en valle. La mediana observada fue ~55% (muestra n=30, sept. 2026 — revisable).</p>",
+      formula:"target_p3_pct ≥ 55" },
+    { names:["relax_change_assessment"], calc:1, type:"STRING", desc:"<p>Solo Relax. Combina si la tarifa en sí fue mejor deal (price_before/after_change_eur) con si el consumo real cambió. Valores: both_favorable, both_unfavorable, tariff_favorable_consumption_up, tariff_unfavorable_consumption_down.</p>" },
   ]
 },
 {
-  id:"churn", title:"Churn y riesgo", cte:"audience",
+  id:"churn", title:"Churn y riesgo", cte:"wh_cdp_audience",
   intro:"",
   rows:[
     { names:["churn_score"], calc:0, type:"DOUBLE", desc:"<p>Última probabilidad de churn del modelo de forecast.</p>" },
     { names:["has_open_complaint"], calc:0, type:"BOOLEAN", desc:"<p>Si la cuenta tiene una queja abierta.</p>" },
     { names:["has_failure_payment"], calc:0, type:"BOOLEAN", desc:"<p>Si la cuenta ha tenido al menos un pago fallido.</p>" },
-    { names:["is_billing_error"], calc:1, type:"BOOLEAN", desc:"<p>Si la cuenta tiene marcado un error de facturación.</p>", formula:"factura >35 días  O  retención >35 días  O  retraso de pago" },
+    { names:["is_billing_error"], calc:1, type:"BOOLEAN", desc:"<p>Si la cuenta tiene marcado un error de facturación.</p>", formula:"factura >35 días O retención >35 días O retraso de pago" },
+    { names:["has_bad_debt_1_30d"], calc:1, type:"BOOLEAN", desc:"<p>Si hay deuda en el bucket 1–30 días (último informe finance). Segment puede excluir cuentas endeudadas.</p>" },
   ]
 },
 {
-  id:"contactos", title:"Contactos", cte:"audience",
+  id:"contactos", title:"Contactos", cte:"wh_cdp_audience",
   intro:"",
   rows:[
     { names:["n_in_contacts"], calc:1, type:"BIGINT", desc:"<p>Total de contactos entrantes (llamadas + mensajes) en el periodo relevante.</p>" },
   ]
 },
 {
-  id:"credito", title:"Crédito y facturación", cte:"audience",
+  id:"credito", title:"Crédito y facturación", cte:"wh_cdp_audience",
   intro:"",
   rows:[
     { names:["has_lower_credit"], calc:1, type:"BOOLEAN", desc:"<p>Si el crédito disponible ha caído por debajo del 50% de la factura esperada (media de las últimas 3 facturas de luz).</p>" },
-    { names:["n_bills_issued_since_lower_credit"], calc:1, type:"BIGINT", desc:"<p>Facturas de luz emitidas desde que el crédito cayó por debajo de ese 50%. <code>0</code> si <code>has_lower_credit</code> no es <code>TRUE</code>.</p>" },
+    { names:["n_bills_issued_since_lower_credit"], calc:1, type:"BIGINT", desc:"<p>Facturas de luz emitidas desde que el crédito cayó por debajo de ese 50%. 0 si has_lower_credit no es TRUE.</p>" },
     { names:["has_hold_invoices"], calc:1, type:"BOOLEAN", desc:"<p>Si la cuenta tiene al menos una factura retenida.</p>" },
   ]
 },
 {
-  id:"fidelizacion", title:"Fidelización y referidos", cte:"audience",
+  id:"fidelizacion", title:"Fidelización y referidos", cte:"wh_cdp_audience",
   intro:"",
   rows:[
-    { names:["is_win_lost_win"], calc:0, type:"BOOLEAN", desc:"<p>Si el cliente se fue de la compañía y volvió tras un tiempo (cliente recuperado).</p>" },
-    { names:["is_octoamigo"], calc:0, type:"BOOLEAN", desc:"<p>Si la cuenta forma parte del programa de referidos OctoAmigos.</p>" },
-    { names:["is_solar_hero"], calc:0, type:"BOOLEAN", desc:"<p>Si la cuenta está marcada como cliente “solar hero”.</p>" },
+    { names:["is_win_lost_win"], calc:0, type:"BOOLEAN", desc:"<p>Si el cliente se fue y volvió (cliente recuperado).</p>" },
+    { names:["is_octoamigo"], calc:0, type:"BOOLEAN", desc:"<p>Si la cuenta forma parte del programa OctoAmigos.</p>" },
+    { names:["is_solar_hero"], calc:0, type:"BOOLEAN", desc:"<p>Si la cuenta está marcada como “solar hero”.</p>" },
     { names:["n_referrals"], calc:0, type:"BIGINT", desc:"<p>Número total de referidos hechos por la cuenta.</p>" },
     { names:["days_to_first_referral"], calc:1, type:"BIGINT", desc:"<p>Días desde la venta del contrato hasta el primer referido en el periodo activo.</p>" },
-    { names:["is_first_referral_in_30days"], calc:1, type:"BOOLEAN", desc:"<p>Si el primer referido ocurrió dentro de los 30 días de la venta del contrato.</p>", formula:"days_to_first_referral < 30" },
+    { names:["is_first_referral_in_30days"], calc:1, type:"BOOLEAN", desc:"<p>Si el primer referido ocurrió dentro de los 30 días de la venta.</p>", formula:"days_to_first_referral < 30" },
   ]
 },
 {
-  id:"productos", title:"Productos adicionales", cte:"audience",
+  id:"productos", title:"Productos adicionales", cte:"wh_cdp_audience",
   intro:"",
   rows:[
     { names:["has_services_product"], calc:0, type:"BOOLEAN", desc:"<p>Si la cuenta tiene un producto de servicios activo.</p>" },
     { names:["self_consumption"], calc:0, type:"BOOLEAN", desc:"<p>Si la cuenta tiene autoconsumo (placas solares).</p>" },
+    { names:["has_io_go"], calc:1, type:"BOOLEAN", desc:"<p>Si el CUPS de la cuenta tiene un dispositivo Live Intelligent Octopus GO (misma lógica que fnl_mkt_portfolioretail).</p>" },
   ]
 },
 {
-  id:"app", title:"Engagement en app", cte:"audience",
-  intro:"Cada métrica existe en 3 ventanas: total desde el cambio de tarifa, antes del email de aviso y después del email (hasta 30 días). Las ventanas before/after son NULL mientras paceful_email_sent_date no tenga fecha.",
+  id:"app", title:"Engagement en app", cte:"wh_cdp_audience",
+  intro:"Cada métrica existe en 3 ventanas ancladas en first_tariff_change_date: total desde el cambio; before = hasta day_after_tariff_change (día siguiente al cambio, ancla interna no publicada); after = desde ese día hasta first_tariff_change_date + 30. No es la fecha real de un email Paceful. Conteos/flags before/after son 0/FALSE si no hay ventana; las fechas de sesión quedan NULL sin evento.",
   rows:[
-    { names:["app_operating_system"], calc:0, type:"STRING", desc:"<p>Sistema operativo móvil de la sesión de app más reciente desde el cambio de tarifa.</p>" },
+    { names:["app_operating_system"], calc:0, type:"STRING", desc:"<p>Sistema operativo móvil de la sesión de app más reciente desde el cambio.</p>" },
     { names:["is_app_user","before_email_is_app_user","after_email_is_app_user"], calc:1, type:"BOOLEAN", desc:"<p>Si hubo al menos una sesión de app en la ventana correspondiente.</p>" },
-    { names:["n_app_sessions","before_email_n_app_sessions","after_email_n_app_sessions"], calc:1, type:"BIGINT", desc:"<p>Número de sesiones de app distintas en la ventana correspondiente.</p>" },
-    { names:["app_first_session","before_email_app_first_session","after_email_app_first_session"], calc:0, type:"DATE", desc:"<p>Primera fecha de sesión de app en la ventana correspondiente.</p>" },
+    { names:["n_app_sessions","before_email_n_app_sessions","after_email_n_app_sessions"], calc:1, type:"BIGINT", desc:"<p>Número de sesiones de app distintas en la ventana.</p>" },
+    { names:["app_first_session","before_email_app_first_session","after_email_app_first_session"], calc:0, type:"DATE", desc:"<p>Primera fecha de sesión de app en la ventana.</p>" },
     { names:["n_days_from_app_first_session","before_email_n_days_from_app_first_session","after_email_n_days_from_app_first_session"], calc:1, type:"BIGINT", desc:"<p>Días desde esa primera sesión hasta hoy.</p>", formula:"DATE_DIFF(hoy, app_first_session)" },
-    { names:["app_last_session","before_email_app_last_session","after_email_app_last_session"], calc:0, type:"DATE", desc:"<p>Última fecha de sesión de app en la ventana correspondiente.</p>" },
-    { names:["n_app_billing_views","before_email_n_app_billing_views","after_email_n_app_billing_views"], calc:1, type:"BIGINT", desc:"<p>Vistas de la pantalla de facturación en la app, en la ventana correspondiente.</p>" },
-    { names:["n_app_tariffdetails_views","before_email_n_app_tariffdetails_views","after_email_n_app_tariffdetails_views"], calc:1, type:"BIGINT", desc:"<p>Vistas de la pantalla de detalles de tarifa en la app, en la ventana correspondiente.</p>" },
-    { names:["has_more20_app_tariffdetails_views","before_email_has_more20_app_tariffdetails_views","after_email_has_more20_app_tariffdetails_views"], calc:1, type:"BOOLEAN", desc:"<p>Si los detalles de tarifa se vieron más de 20 veces en la ventana correspondiente.</p>" },
+    { names:["app_last_session","before_email_app_last_session","after_email_app_last_session"], calc:0, type:"DATE", desc:"<p>Última fecha de sesión de app en la ventana.</p>" },
+    { names:["n_app_billing_views","before_email_n_app_billing_views","after_email_n_app_billing_views"], calc:1, type:"BIGINT", desc:"<p>Vistas de la pantalla de facturación en la app.</p>" },
+    { names:["n_app_tariffdetails_views","before_email_n_app_tariffdetails_views","after_email_n_app_tariffdetails_views"], calc:1, type:"BIGINT", desc:"<p>Vistas de detalles de tarifa en la app.</p>" },
+    { names:["n_app_consumption_views","before_email_n_app_consumption_views","after_email_n_app_consumption_views"], calc:1, type:"BIGINT", desc:"<p>Vistas de la pantalla de consumo/uso en la app (<code>firebase_screen = 'usage'</code>).</p>" },
+    { names:["has_more20_app_tariffdetails_views","before_email_has_more20_app_tariffdetails_views","after_email_has_more20_app_tariffdetails_views"], calc:1, type:"BOOLEAN", desc:"<p>Si los detalles de tarifa se vieron más de 20 veces en la ventana.</p>" },
   ]
 },
 {
-  id:"web", title:"Engagement en web", cte:"audience",
-  intro:"Mismo patrón de 3 ventanas que en app.",
+  id:"web", title:"Engagement en web", cte:"wh_cdp_audience",
+  intro:"Mismo patrón de 3 ventanas que en app (ancla day_after_tariff_change, no un email real).",
   rows:[
-    { names:["is_web_user","before_email_is_web_user","after_email_is_web_user"], calc:1, type:"BOOLEAN", desc:"<p>Si hubo al menos una sesión web en la ventana correspondiente.</p>" },
-    { names:["web_first_session","before_email_web_first_session","after_email_web_first_session"], calc:0, type:"DATE", desc:"<p>Primera fecha de sesión web en la ventana correspondiente.</p>" },
+    { names:["is_web_user","before_email_is_web_user","after_email_is_web_user"], calc:1, type:"BOOLEAN", desc:"<p>Si hubo al menos una sesión web en la ventana.</p>" },
+    { names:["web_first_session","before_email_web_first_session","after_email_web_first_session"], calc:0, type:"DATE", desc:"<p>Primera fecha de sesión web en la ventana.</p>" },
     { names:["n_days_from_web_first_session","before_email_n_days_from_web_first_session","after_email_n_days_from_web_first_session"], calc:1, type:"BIGINT", desc:"<p>Días desde esa primera sesión hasta hoy.</p>", formula:"DATE_DIFF(hoy, web_first_session)" },
-    { names:["web_last_session","before_email_web_last_session","after_email_web_last_session"], calc:0, type:"DATE", desc:"<p>Última fecha de sesión web en la ventana correspondiente.</p>" },
-    { names:["n_web_billing_views","before_email_n_web_billing_views","after_email_n_web_billing_views"], calc:1, type:"BIGINT", desc:"<p>Visitas a la página de facturas en la ventana correspondiente.</p>" },
-    { names:["n_web_mytariff_views","before_email_n_web_mytariff_views","after_email_n_web_mytariff_views"], calc:1, type:"BIGINT", desc:"<p>Visitas a la página “mi tarifa” en la ventana correspondiente.</p>" },
-    { names:["n_web_consumptionexplorer_views","before_email_n_web_consumptionexplorer_views","after_email_n_web_consumptionexplorer_views"], calc:1, type:"BIGINT", desc:"<p>Visitas al explorador de consumo en la ventana correspondiente.</p>" },
+    { names:["web_last_session","before_email_web_last_session","after_email_web_last_session"], calc:0, type:"DATE", desc:"<p>Última fecha de sesión web en la ventana.</p>" },
+    { names:["n_web_billing_views","before_email_n_web_billing_views","after_email_n_web_billing_views"], calc:1, type:"BIGINT", desc:"<p>Visitas a la página de facturas.</p>" },
+    { names:["n_web_mytariff_views","before_email_n_web_mytariff_views","after_email_n_web_mytariff_views"], calc:1, type:"BIGINT", desc:"<p>Visitas a “mi tarifa”.</p>" },
+    { names:["n_web_consumptionexplorer_views","before_email_n_web_consumptionexplorer_views","after_email_n_web_consumptionexplorer_views"], calc:1, type:"BIGINT", desc:"<p>Visitas al explorador de consumo.</p>" },
   ]
 },
 {
-  id:"email-factura", title:"Engagement con el email de factura", cte:"audience",
-  intro:"Se refiere al email de aviso de factura (“Información: Tu factura energética”), no al email de cambio de tarifa. Mismo patrón de 3 ventanas.",
+  id:"email-factura", title:"Engagement con el email de factura", cte:"wh_cdp_audience",
+  intro:"Email de aviso de factura (“Información: Tu factura energética”), no el email de cambio de tarifa. Mismo patrón de 3 ventanas (ancla day_after_tariff_change).",
   rows:[
-    { names:["is_billingemail_user","before_email_is_billingemail_user","after_email_is_billingemail_user"], calc:1, type:"BOOLEAN", desc:"<p>Si se abrió al menos un email de factura en la ventana correspondiente.</p>" },
-    { names:["first_billingemail_sent_date","before_email_first_billingemail_sent_date","after_email_first_billingemail_sent_date"], calc:0, type:"DATE", desc:"<p>Primera fecha de envío en la ventana correspondiente.</p>" },
-    { names:["last_billingemail_sent_date","before_email_last_billingemail_sent_date","after_email_last_billingemail_sent_date"], calc:0, type:"DATE", desc:"<p>Última fecha de envío en la ventana correspondiente.</p>" },
-    { names:["first_billingemail_opened_date","before_email_first_billingemail_opened_date","after_email_first_billingemail_opened_date"], calc:0, type:"DATE", desc:"<p>Primera fecha de apertura en la ventana correspondiente.</p>" },
-    { names:["last_billingemail_opened_date","before_email_last_billingemail_opened_date","after_email_last_billingemail_opened_date"], calc:0, type:"DATE", desc:"<p>Última fecha de apertura en la ventana correspondiente.</p>" },
+    { names:["is_billingemail_user","before_email_is_billingemail_user","after_email_is_billingemail_user"], calc:1, type:"BOOLEAN", desc:"<p>Si se abrió al menos un email de factura en la ventana.</p>" },
+    { names:["first_billingemail_sent_date","before_email_first_billingemail_sent_date","after_email_first_billingemail_sent_date"], calc:0, type:"DATE", desc:"<p>Primera fecha de envío en la ventana.</p>" },
+    { names:["last_billingemail_sent_date","before_email_last_billingemail_sent_date","after_email_last_billingemail_sent_date"], calc:0, type:"DATE", desc:"<p>Última fecha de envío en la ventana.</p>" },
+    { names:["first_billingemail_opened_date","before_email_first_billingemail_opened_date","after_email_first_billingemail_opened_date"], calc:0, type:"DATE", desc:"<p>Primera fecha de apertura en la ventana.</p>" },
+    { names:["last_billingemail_opened_date","before_email_last_billingemail_opened_date","after_email_last_billingemail_opened_date"], calc:0, type:"DATE", desc:"<p>Última fecha de apertura en la ventana.</p>" },
     { names:["n_days_from_first_billingemail_sent_date","before_email_n_days_from_first_billingemail_sent_date","after_email_n_days_from_first_billingemail_sent_date"], calc:1, type:"BIGINT", desc:"<p>Días desde el primer envío hasta hoy.</p>" },
     { names:["n_days_from_first_billingemail_opened_date","before_email_n_days_from_first_billingemail_opened_date","after_email_n_days_from_first_billingemail_opened_date"], calc:1, type:"BIGINT", desc:"<p>Días desde la primera apertura hasta hoy.</p>" },
-    { names:["n_billingemail_opens","before_email_n_billingemail_opens","after_email_n_billingemail_opens"], calc:1, type:"BIGINT", desc:"<p>Número de aperturas de email de factura en la ventana correspondiente.</p>" },
+    { names:["n_billingemail_opens","before_email_n_billingemail_opens","after_email_n_billingemail_opens"], calc:1, type:"BIGINT", desc:"<p>Número de aperturas de email de factura en la ventana.</p>" },
   ]
 },
 {
-  id:"personal", title:"Datos personales", cte:"personal_data (wh_mkt_commsdata_pii)",
-  intro:"Todas marcadas como sensibles (PII).",
+  id:"personal", title:"Datos personales y contactabilidad", cte:"wh_cdp_audience_pii · wh_mkt_commsdata_pii",
+  intro:"En fnl_cdp_accounts_pii solo quedan address y n_emails_last_30d. Nombre, apellidos, email y móvil están en fnl_cdp_users_pii (grano user_id).",
   rows:[
-    { names:["given_name"], calc:0, type:"STRING", desc:"<p>Nombre del cliente.</p>" },
-    { names:["first_family_name","second_family_name"], calc:0, type:"STRING", desc:"<p>Primer y segundo apellido.</p>" },
-    { names:["email"], calc:0, type:"STRING", desc:"<p>Correo electrónico.</p>" },
-    { names:["mobile"], calc:0, type:"STRING", desc:"<p>Teléfono móvil.</p>" },
-    { names:["address"], calc:0, type:"STRING", desc:"<p>Dirección postal usada para comunicaciones.</p>" },
-    { names:["n_emails_last_30d"], calc:1, type:"BIGINT", desc:"<p>Número de emails enviados al cliente en los últimos 30 días.</p>" },
+    { names:["address"], calc:0, type:"STRING", desc:"<p>Dirección postal usada para comunicaciones (sensible).</p>" },
+    { names:["n_emails_last_30d"], calc:1, type:"BIGINT", desc:"<p>Emails enviados al cliente en los últimos 30 días.</p>" },
   ]
 },
 {
-  id:"otros", title:"Otros", cte:"tariff_source (wh_commercial_tariffchangesource)",
+  id:"otros", title:"Otros", cte:"wh_commercial_tariffchangesource",
   intro:"",
   rows:[
-    { names:["tariffchange_source"], calc:1, type:"STRING", desc:"<p>Fuente atribuida del cambio de tarifa: <code>ops_interaction</code>, <code>web_to_ops</code>, <code>web_interaction</code> o <code>unknown</code>. Se añadirá <code>form_interaction</code> cuando haya datos de Typeform disponibles.</p>" },
+    { names:["tariffchange_source"], calc:1, type:"STRING", desc:"<p>Fuente atribuida del cambio: ops_interaction, web_to_ops, web_interaction o unknown. Se añadirá form_interaction cuando haya Typeform.</p>" },
   ]
 },
 {
-  id:"activacion", title:"Activación y experimento", cte:"SELECT final",
-  intro:"Las tres columnas que decide todo lo que sale hacia Segment.",
+  id:"segment", title:"Uso en Segment", cte:"export_cdp_accounts_pii · Segment",
+  intro:"Ya no hay columnas de trigger ni control group en dbt. La audiencia llega abierta; Segment define filtros, journeys y holdouts.",
   rows:[
-    { names:["trigger_consumption_increase"], calc:1, type:"BOOLEAN", desc:"<p><strong>Bandera principal de activación.</strong> Cuenta en su primer cambio de tarifa cuya factura objetivo —la primera válida con la tarifa nueva, más de 20 días; una de transición más corta no cuenta— muestra un consumo diario al menos un 30% mayor que el baseline de hasta 3 facturas anteriores.</p>",
-      formula:"COALESCE(total_pct_change ≥ 30, FALSE)  AND  n_tariff_changes = 1" },
-    { names:["is_control_group"], calc:1, type:"BOOLEAN", desc:"<p>Holdout determinista del 15% que NO debe enviarse a Segment. Al ser determinista sobre <code>account_id</code>, la misma cuenta siempre cae en el mismo grupo.</p>",
-      formula:"PMOD(HASH(account_id), 100) < 15" },
-    { names:["experiment_group"], calc:1, type:"STRING", desc:"<p><code>control</code> (el 15% de holdout) o <code>treatment</code> (el 85% restante). Para el análisis post-campaña.</p>" },
+    { names:["(filtros recomendados)"], calc:0, type:"—", desc:"<p>Ejemplos de filtros por use case: <code>n_tariff_changes = 1</code>, <code>supplypoint_status</code>, <code>has_bad_debt_1_30d = FALSE</code>, <code>has_first_valid_invoice_after_tariffchange</code>, flags Octo3/Relax, etc. El consentimiento legal ya está filtrado en warehouse (<code>opted_in_to_offers</code>).</p>" },
+    { names:["(copy franja horaria)"], calc:0, type:"—", desc:"<p><strong>Gasto actual en caro:</strong> expensive_hours_start/end/pct. <strong>Dónde ha subido el consumo:</strong> peak_range_start/end (+ peak_range_kwh_diff). No mezclar ambos textos.</p>" },
   ]
 },
 ];
+
 
 /* ============================================================
    Render
@@ -856,7 +849,7 @@ const callout = document.createElement('div');
 callout.className = 'callout';
 callout.innerHTML = `
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
-  <p>Segment solo debe sincronizar las filas donde <code>trigger_consumption_increase = TRUE</code> <strong>y</strong> <code>is_control_group = FALSE</code>.</p>
+  <p>Audiencia abierta: Segment recibe las cuentas opted-in y aplica sus propios filtros, triggers y control groups. No existen ya <code>trigger_consumption_increase</code> / <code>is_control_group</code> en dbt. PII de titular → <code>fnl_cdp_users_pii</code>; export → <code>export_cdp_accounts_pii</code>.</p>
 `;
 main.appendChild(callout);
 
