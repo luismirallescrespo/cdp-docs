@@ -603,7 +603,7 @@ const DATA = [
     { names:["has_significant_consumption_change"], calc:1, type:"BOOLEAN", desc:"<p>Si al menos una hora del día supera los dos umbrales de aumento.</p>", formula:"diff_kwh ≥ 0.3 kWh/h/día Y pct_change ≥ 30%" },
     { names:["n_hours_significant_increase"], calc:1, type:"BIGINT", desc:"<p>Número de horas del día que superan esos umbrales.</p>" },
     { names:["peak_range_start_hour","peak_range_end_hour"], calc:1, type:"BIGINT", desc:"<p>Inicio y fin (<strong>1–24</strong>, cierre de contador) del bloque de horas consecutivas con subida significativa vs baseline (<code>diff_kwh ≥ 0.3</code> y <code>pct_change ≥ 30</code>). No usa límites de P1/P2/P3. <code>NULL</code> si ninguna hora cumple los umbrales. Gana el bloque con mayor kWh de incremento.</p>" },
-    { names:["peak_range_kwh_diff"], calc:1, type:"DOUBLE", desc:"<p>kWh de más (objetivo vs baseline) dentro de ese bloque. Copy tipo “si mueves X kWh a las horas más baratas…”.</p>" },
+    { names:["peak_range_kwh_diff"], calc:1, type:"DOUBLE", desc:"<p>Suma de <code>diff_kwh</code> (factura objetivo − baseline) en las horas del bloque <code>peak_range_*</code>. Indica cuántos kWh de incremento concentra esa franja.</p>" },
     { names:["peak_range_pct_of_consumption"], calc:1, type:"DOUBLE", desc:"<p>% del consumo total de la factura objetivo que cae en ese bloque (composición, no vs baseline).</p>" },
     { names:["target_total_kwh"], calc:0, type:"DOUBLE", desc:"<p>Consumo total de la factura objetivo.</p>" },
     { names:["baseline_total_kwh"], calc:1, type:"DOUBLE", desc:"<p>Consumo esperado en los días de la factura objetivo, según la media diaria del baseline escalada a n_days_target_invoice.</p>" },
