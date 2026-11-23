@@ -602,7 +602,7 @@ const DATA = [
   rows:[
     { names:["has_significant_consumption_change"], calc:1, type:"BOOLEAN", desc:"<p>Si al menos una hora del día supera los dos umbrales de aumento.</p>", formula:"diff_kwh ≥ 0.3 kWh/h/día Y pct_change ≥ 30%" },
     { names:["n_hours_significant_increase"], calc:1, type:"BIGINT", desc:"<p>Número de horas del día que superan esos umbrales.</p>" },
-    { names:["peak_range_start_hour","peak_range_end_hour"], calc:1, type:"BIGINT", desc:"<p>Inicio y fin (<strong>1–24</strong>, hora de cierre del contador) del bloque de horas consecutivas con subida significativa vs baseline. No es P1/P2/P3. <code>NULL</code> si ninguna hora cumple los umbrales. <strong>Copy:</strong> “tu consumo ha subido sobre todo entre las Ah y las Bh” — no usar para “consumes el X% entre Ah y Bh” (eso es expensive_hours_*).</p>" },
+    { names:["peak_range_start_hour","peak_range_end_hour"], calc:1, type:"BIGINT", desc:"<p>Inicio y fin (<strong>1–24</strong>, cierre de contador) del bloque de horas consecutivas con subida significativa vs baseline (<code>diff_kwh ≥ 0.3</code> y <code>pct_change ≥ 30</code>). No usa límites de P1/P2/P3. <code>NULL</code> si ninguna hora cumple los umbrales. Gana el bloque con mayor kWh de incremento.</p>" },
     { names:["peak_range_kwh_diff"], calc:1, type:"DOUBLE", desc:"<p>kWh de más (objetivo vs baseline) dentro de ese bloque. Copy tipo “si mueves X kWh a las horas más baratas…”.</p>" },
     { names:["peak_range_pct_of_consumption"], calc:1, type:"DOUBLE", desc:"<p>% del consumo total de la factura objetivo que cae en ese bloque (composición, no vs baseline).</p>" },
     { names:["target_total_kwh"], calc:0, type:"DOUBLE", desc:"<p>Consumo total de la factura objetivo.</p>" },
@@ -613,7 +613,7 @@ const DATA = [
 },
 {
   id:"periodos", title:"Consumo por periodo tarifario (P1/P2/P3)", cte:"wh_cdp_consumptionhourlycomparison → aggregated",
-  intro:"Punta, llano y valle. target_pX_kwh y baseline_pX_kwh van normalizados a los mismos días (target − baseline = diff). Para copy de franja horaria de gasto actual en caro, usar expensive_hours_*; peak_range_* es otra métrica (subida vs baseline).",
+  intro:"Consumo de la factura objetivo y del baseline desglosado en punta (P1), llano (P2) y valle (P3). target_pX_kwh y baseline_pX_kwh usan el mismo número de días, así que target_pX_kwh − baseline_pX_kwh = diff_pX_kwh.",
   rows:[
     { names:["target_p1_kwh","target_p2_kwh","target_p3_kwh"], calc:0, type:"DOUBLE", desc:"<p>kWh facturados en cada periodo de la factura objetivo. <span class='pchip p1'>P1</span> <span class='pchip p2'>P2</span> <span class='pchip p3'>P3</span></p>" },
     { names:["baseline_p1_kwh","baseline_p2_kwh","baseline_p3_kwh"], calc:1, type:"DOUBLE", desc:"<p>Tasa diaria de cada periodo en el baseline, escalada a los días de la factura objetivo.</p>" },
@@ -621,9 +621,9 @@ const DATA = [
     { names:["pct_change_p1","pct_change_p2","pct_change_p3"], calc:1, type:"DOUBLE", desc:"<p>Variación % por periodo, sobre la tasa diaria.</p>", formula:"diff_pX_kwh / baseline_pX_kwh × 100" },
     { names:["target_p1_pct","target_p2_pct","target_p3_pct"], calc:1, type:"DOUBLE", desc:"<p>Peso de cada periodo sobre el total de la factura objetivo (composición).</p>" },
     { names:["baseline_p1_pct","baseline_p2_pct","baseline_p3_pct"], calc:1, type:"DOUBLE", desc:"<p>Peso de cada periodo sobre el total del baseline. Útil vs target_pX_pct: “tu consumo en punta pasó del X% al Y%”.</p>" },
-    { names:["top_consumption_period"], calc:1, type:"BIGINT", desc:"<p>Periodo (1, 2 o 3) con mayor % de consumo en la factura objetivo. Composición, no vs baseline.</p>" },
-    { names:["top_consumption_period_pct"], calc:1, type:"DOUBLE", desc:"<p>% de la factura que corresponde a top_consumption_period.</p>" },
-    { names:["expensive_hours_start_hour"], calc:1, type:"BIGINT", desc:"<p>Hora de inicio (<strong>1–24</strong>) del único bloque contiguo de mayor consumo real dentro de P1 o P2 (gana el de mayor % del total; empate → P1). Solo P1/P2. <strong>Copy:</strong> “consumes / gastas un X% de luz entre las Ah y las Bh”. <code>NULL</code> si el ganador no llega al 5% del total.</p>" },
+    { names:["top_consumption_period"], calc:1, type:"BIGINT", desc:"<p>Periodo tarifario (1 = punta, 2 = llano, 3 = valle) con más kWh en la factura objetivo. Se calcula comparando <code>target_p1_kwh</code>, <code>target_p2_kwh</code> y <code>target_p3_kwh</code> y eligiendo el máximo (empates: prioridad P1, luego P2, luego P3). <code>NULL</code> si no hay consumo por periodo. No compara contra el baseline.</p>" },
+    { names:["top_consumption_period_pct"], calc:1, type:"DOUBLE", desc:"<p>Porcentaje del consumo total de la factura objetivo que cae en <code>top_consumption_period</code>.</p><div class=\"formula\"><span class=\"flabel\">Fórmula</span><code>100 × max(target_p1_kwh, target_p2_kwh, target_p3_kwh) / (target_p1_kwh + target_p2_kwh + target_p3_kwh)</code></div><p><code>NULL</code> si el total de la factura por periodos es 0 o no hay datos. Es solo composición de esa factura (un único periodo), no la suma de varios periodos ni un cambio vs baseline.</p>" },
+    { names:["expensive_hours_start_hour"], calc:1, type:"BIGINT", desc:"<p>Hora de inicio (<strong>1–24</strong>, cierre de contador) del único bloque contiguo de horas con más kWh reales cuyo periodo dominante es P1 o P2. Se toma el mejor bloque de P1 y el de P2 y gana el de mayor % sobre el total de la factura (empate → P1). <code>NULL</code> si el ganador no llega al 5% del total.</p>" },
     { names:["expensive_hours_end_hour"], calc:1, type:"BIGINT", desc:"<p>Hora de fin (1–24) de ese tramo ganador.</p>" },
     { names:["expensive_hours_pct"], calc:1, type:"DOUBLE", desc:"<p>% del total de la factura del tramo ganador (expensive_hours_start_hour – end_hour). Misma condición de NULL.</p>" },
   ]
@@ -764,7 +764,7 @@ const DATA = [
   intro:"Ya no hay columnas de trigger ni control group en dbt. La audiencia llega abierta; Segment define filtros, journeys y holdouts.",
   rows:[
     { names:["(filtros recomendados)"], calc:0, type:"—", desc:"<p>Ejemplos de filtros por use case: <code>n_tariff_changes = 1</code>, <code>supplypoint_status</code>, <code>has_bad_debt_1_30d = FALSE</code>, <code>has_first_valid_invoice_after_tariffchange</code>, flags Octo3/Relax, etc. El consentimiento legal ya está filtrado en warehouse (<code>opted_in_to_offers</code>).</p>" },
-    { names:["(copy franja horaria)"], calc:0, type:"—", desc:"<p><strong>Gasto actual en caro:</strong> expensive_hours_start/end/pct. <strong>Dónde ha subido el consumo:</strong> peak_range_start/end (+ peak_range_kwh_diff). No mezclar ambos textos.</p>" },
+    { names:["(métricas de franja)"], calc:0, type:"—", desc:"<p><code>expensive_hours_*</code>: bloque horario de mayor consumo real en P1/P2. <code>peak_range_*</code>: bloque horario de mayor subida vs baseline. Son cálculos distintos; no comparten umbral ni semántica.</p>" },
   ]
 },
 ];
