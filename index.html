@@ -489,7 +489,7 @@
       <code>opted_in_to_offers</code>). Expone atributos de cuenta, engagement app/web/email,
       comparación de consumo y de precio. Segment filtra por use case
       (<code>n_tariff_changes</code>, <code>days_on_supply</code>, <code>supplypoint_status</code>,
-      <code>has_bad_debt_1_30d</code>, etc.). El PII de titular vive en
+      <code>has_bad_debt_1_30d</code>, etc.). Del titular (user) →
       <code>fnl_cdp_users_pii</code>; el sync a Segment usa <code>export_cdp_accounts_pii</code>.
     </p>
     <div class="stats">
@@ -620,7 +620,7 @@ const DATA = [
     { names:["diff_p1_kwh","diff_p2_kwh","diff_p3_kwh"], calc:1, type:"DOUBLE", desc:"<p>Diferencia por periodo.</p>", formula:"target_pX_kwh − baseline_pX_kwh" },
     { names:["pct_change_p1","pct_change_p2","pct_change_p3"], calc:1, type:"DOUBLE", desc:"<p>Variación % por periodo, sobre la tasa diaria.</p>", formula:"diff_pX_kwh / baseline_pX_kwh × 100" },
     { names:["target_p1_pct","target_p2_pct","target_p3_pct"], calc:1, type:"DOUBLE", desc:"<p>Peso de cada periodo sobre el total de la factura objetivo (composición).</p>" },
-    { names:["baseline_p1_pct","baseline_p2_pct","baseline_p3_pct"], calc:1, type:"DOUBLE", desc:"<p>Peso de cada periodo sobre el total del baseline. Útil vs target_pX_pct: “tu consumo en punta pasó del X% al Y%”.</p>" },
+    { names:["baseline_p1_pct","baseline_p2_pct","baseline_p3_pct"], calc:1, type:"DOUBLE", desc:"<p>Peso de cada periodo sobre el total del baseline (<code>100 × baseline_pX_kwh / Σ baseline_p*_kwh</code>). Comparar con <code>target_pX_pct</code> para ver el cambio de composición entre facturas.</p>" },
     { names:["top_consumption_period"], calc:1, type:"BIGINT", desc:"<p>Periodo tarifario (1 = punta, 2 = llano, 3 = valle) con más kWh en la factura objetivo. Se calcula comparando <code>target_p1_kwh</code>, <code>target_p2_kwh</code> y <code>target_p3_kwh</code> y eligiendo el máximo (empates: prioridad P1, luego P2, luego P3). <code>NULL</code> si no hay consumo por periodo. No compara contra el baseline.</p>" },
     { names:["top_consumption_period_pct"], calc:1, type:"DOUBLE", desc:"<p>Porcentaje del consumo total de la factura objetivo que cae en <code>top_consumption_period</code>.</p><div class=\"formula\"><span class=\"flabel\">Fórmula</span><code>100 × max(target_p1_kwh, target_p2_kwh, target_p3_kwh) / (target_p1_kwh + target_p2_kwh + target_p3_kwh)</code></div><p><code>NULL</code> si el total de la factura por periodos es 0 o no hay datos. Es solo composición de esa factura (un único periodo), no la suma de varios periodos ni un cambio vs baseline.</p>" },
     { names:["expensive_hours_start_hour"], calc:1, type:"BIGINT", desc:"<p>Hora de inicio (<strong>1–24</strong>, cierre de contador) del único bloque contiguo de horas con más kWh reales cuyo periodo dominante es P1 o P2. Se toma el mejor bloque de P1 y el de P2 y gana el de mayor % sobre el total de la factura (empate → P1). <code>NULL</code> si el ganador no llega al 5% del total.</p>" },
@@ -849,7 +849,7 @@ const callout = document.createElement('div');
 callout.className = 'callout';
 callout.innerHTML = `
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
-  <p>Audiencia abierta: Segment recibe las cuentas opted-in y aplica sus propios filtros, triggers y control groups. No existen ya <code>trigger_consumption_increase</code> / <code>is_control_group</code> en dbt. PII de titular → <code>fnl_cdp_users_pii</code>; export → <code>export_cdp_accounts_pii</code>.</p>
+  <p>Audiencia abierta: Segment recibe las cuentas opted-in y aplica sus propios filtros, triggers y control groups. Del titular (user) → <code>fnl_cdp_users_pii</code>; export → <code>export_cdp_accounts_pii</code>.</p>
 `;
 main.appendChild(callout);
 
