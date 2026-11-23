@@ -1,0 +1,920 @@
+<!doctype html>
+<title>Cambio de Tarifa CDP</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    color-scheme: light dark;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+
+    --ground:#F2F5F6;
+    --surface:#FFFFFF;
+    --surface-alt:#E7ECEE;
+    --code-bg:#EDF1F2;
+    --ink:#111820;
+    --ink-muted:#57626C;
+    --border:#D7DDE0;
+    --accent:#166B85;
+    --accent-strong:#0E4C60;
+    --accent-soft:#DCEEF2;
+    --punta:#AE4530; --punta-soft:#F3E1DA;
+    --llano:#A97A24; --llano-soft:#F1E7D1;
+    --valle:#3C7A5B; --valle-soft:#DEEBE3;
+    --shadow: 0 1px 2px rgba(17,24,32,.07), 0 6px 20px -8px rgba(17,24,32,.10);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#0C1115;
+      --surface:#131A1F;
+      --surface-alt:#1A2126;
+      --code-bg:#182026;
+      --ink:#E7EDEF;
+      --ink-muted:#8FA0A8;
+      --border:#28323A;
+      --accent:#5CAFC8;
+      --accent-strong:#BFE3EE;
+      --accent-soft:#173038;
+      --punta:#DD8A6D; --punta-soft:#2A1D18;
+      --llano:#D6AC5C; --llano-soft:#2A2416;
+      --valle:#77C09B; --valle-soft:#17281F;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -10px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0C1115;
+    --surface:#131A1F;
+    --surface-alt:#1A2126;
+    --code-bg:#182026;
+    --ink:#E7EDEF;
+    --ink-muted:#8FA0A8;
+    --border:#28323A;
+    --accent:#5CAFC8;
+    --accent-strong:#BFE3EE;
+    --accent-soft:#173038;
+    --punta:#DD8A6D; --punta-soft:#2A1D18;
+    --llano:#D6AC5C; --llano-soft:#2A2416;
+    --valle:#77C09B; --valle-soft:#17281F;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -10px rgba(0,0,0,.6);
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; }
+  body{
+    background:var(--ground);
+    color:var(--ink);
+    font-family:'IBM Plex Sans', system-ui, sans-serif;
+    font-size:15px;
+    line-height:1.55;
+    padding-inline:20px;
+  }
+  img{ max-width:100%; }
+  [hidden]{ display:none !important; }
+  code, .mono{ font-family:'IBM Plex Mono','SFMono-Regular',monospace; }
+  h1,h2,h3{ font-family:'Archivo', system-ui, sans-serif; text-wrap:balance; letter-spacing:-.01em; }
+  a{ color:var(--accent); }
+  ::selection{ background:var(--accent-soft); }
+
+  .shell{
+    max-width:1180px;
+    margin-inline:auto;
+    padding-block:28px 60px;
+  }
+
+  /* ---------- Header (bill summary strip) ---------- */
+  .header{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:14px;
+    box-shadow:var(--shadow);
+    padding:26px 28px;
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
+  .eyebrow{
+    font:600 11.5px/1 'IBM Plex Mono',monospace;
+    letter-spacing:.11em;
+    text-transform:uppercase;
+    color:var(--accent-strong);
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .eyebrow::before{
+    content:"";
+    width:8px; height:8px;
+    border-radius:50%;
+    background:var(--accent);
+    box-shadow:0 0 0 3px var(--accent-soft);
+  }
+  .header h1{
+    margin:0;
+    font-size:clamp(22px,3.4vw,30px);
+    font-weight:700;
+  }
+  .header p.lede{
+    margin:0;
+    max-width:64ch;
+    color:var(--ink-muted);
+    font-size:14.5px;
+  }
+  .stats{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-top:4px;
+  }
+  .stat{
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+    padding:9px 14px;
+    background:var(--surface-alt);
+    border:1px solid var(--border);
+    border-radius:9px;
+    min-width:118px;
+  }
+  .stat .k{
+    font-size:10.5px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:var(--ink-muted);
+  }
+  .stat .v{
+    font:600 14px/1.2 'IBM Plex Mono',monospace;
+    color:var(--ink);
+  }
+
+  /* ---------- Legend ---------- */
+  .legend{
+    margin-top:18px;
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+    gap:14px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:18px 22px;
+    box-shadow:var(--shadow);
+  }
+  .legend h2{
+    grid-column:1/-1;
+    margin:0 0 2px;
+    font-size:13px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:var(--ink-muted);
+    font-weight:600;
+  }
+  .legend-item{ display:flex; gap:10px; align-items:flex-start; }
+  .legend-item p{ margin:0; font-size:13.5px; color:var(--ink-muted); }
+  .legend-item strong{ color:var(--ink); }
+  .period-row{ display:flex; gap:8px; flex-wrap:wrap; }
+
+  .badge{
+    display:inline-flex;
+    align-items:center;
+    padding:3px 9px;
+    border-radius:999px;
+    font:500 11.5px/1.4 'IBM Plex Mono',monospace;
+    white-space:nowrap;
+    border:1px solid transparent;
+  }
+  .badge-calc{ background:var(--accent-soft); color:var(--accent-strong); }
+  .badge-direct{ background:var(--surface-alt); color:var(--ink-muted); border-color:var(--border); }
+
+  .pchip{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    padding:3px 10px 3px 8px;
+    border-radius:999px;
+    font:500 12px/1.4 'IBM Plex Sans',sans-serif;
+    white-space:nowrap;
+  }
+  .pchip::before{ content:""; width:7px; height:7px; border-radius:50%; }
+  .pchip.p1{ background:var(--punta-soft); color:var(--punta); }
+  .pchip.p1::before{ background:var(--punta); }
+  .pchip.p2{ background:var(--llano-soft); color:var(--llano); }
+  .pchip.p2::before{ background:var(--llano); }
+  .pchip.p3{ background:var(--valle-soft); color:var(--valle); }
+  .pchip.p3::before{ background:var(--valle); }
+
+  /* ---------- Controls ---------- */
+  .controls{
+    margin-top:18px;
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    align-items:center;
+    position:sticky;
+    top:env(safe-area-inset-top,0px);
+    z-index:5;
+    background:var(--ground);
+    padding-block:10px;
+  }
+  .search{
+    flex:1 1 260px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:9px 14px;
+    box-shadow:var(--shadow);
+  }
+  .search svg{ color:var(--ink-muted); flex:none; }
+  .search input{
+    border:none;
+    outline:none;
+    background:none;
+    color:var(--ink);
+    font:14px/1.4 'IBM Plex Sans',sans-serif;
+    width:100%;
+  }
+  .search input::placeholder{ color:var(--ink-muted); }
+  .search .count{
+    font:500 12px/1 'IBM Plex Mono',monospace;
+    color:var(--ink-muted);
+    white-space:nowrap;
+  }
+  .seg{
+    display:flex;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:3px;
+    box-shadow:var(--shadow);
+  }
+  .seg button{
+    appearance:none;
+    border:none;
+    background:none;
+    color:var(--ink-muted);
+    font:500 12.5px/1 'IBM Plex Sans',sans-serif;
+    padding:7px 12px;
+    border-radius:7px;
+    cursor:pointer;
+  }
+  .seg button.active{ background:var(--accent); color:#fff; }
+  .seg button:focus-visible, .search input:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
+  /* ---------- Layout: sidebar + content ---------- */
+  .layout{
+    display:grid;
+    grid-template-columns:230px 1fr;
+    gap:36px;
+    margin-top:22px;
+  }
+  nav.toc{
+    position:sticky;
+    top:calc(64px + env(safe-area-inset-top,0px));
+    align-self:start;
+    max-height:calc(100vh - 90px);
+    overflow-y:auto;
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+    padding-right:6px;
+  }
+  nav.toc a, nav.toc button{
+    display:block;
+    width:100%;
+    text-align:left;
+    padding:7px 10px;
+    border-radius:8px;
+    font-size:13px;
+    color:var(--ink-muted);
+    text-decoration:none;
+    border:none;
+    border-left:2px solid transparent;
+    background:transparent;
+    cursor:pointer;
+    font-family:inherit;
+  }
+  nav.toc a:hover, nav.toc button:hover{ background:var(--surface-alt); color:var(--ink); }
+  nav.toc a.current, nav.toc button.current{
+    background:var(--accent-soft);
+    color:var(--accent-strong);
+    border-left-color:var(--accent);
+    font-weight:500;
+  }
+
+  main{ min-width:0; display:flex; flex-direction:column; gap:34px; }
+
+  section.block{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:14px;
+    box-shadow:var(--shadow);
+    padding:22px 24px 8px;
+    scroll-margin-top:70px;
+  }
+  section.block .head{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-bottom:4px;
+  }
+  section.block h2{
+    margin:0;
+    font-size:18px;
+    font-weight:700;
+  }
+  section.block .cte{
+    font:500 11.5px/1.4 'IBM Plex Mono',monospace;
+    color:var(--ink-muted);
+    background:var(--surface-alt);
+    border:1px solid var(--border);
+    border-radius:999px;
+    padding:3px 10px;
+    white-space:nowrap;
+  }
+  section.block .intro{
+    margin:6px 0 16px;
+    color:var(--ink-muted);
+    font-size:13.5px;
+    max-width:74ch;
+  }
+
+  .table-scroll{ overflow-x:auto; margin:0 -2px; }
+  table{
+    width:100%;
+    border-collapse:collapse;
+    min-width:640px;
+  }
+  colgroup .col-name{ width:24%; }
+  colgroup .col-badge{ width:11%; }
+  colgroup .col-type{ width:9%; }
+  colgroup .col-desc{ width:56%; }
+
+  thead th{
+    text-align:left;
+    font:600 10.5px/1 'IBM Plex Mono',monospace;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:var(--ink-muted);
+    padding:8px 10px;
+    border-bottom:1px solid var(--border);
+  }
+  tbody tr{ border-bottom:1px solid var(--border); }
+  tbody tr:last-child{ border-bottom:none; }
+  tbody td{
+    padding:12px 10px;
+    vertical-align:top;
+    font-size:13.5px;
+  }
+  .c-name code{
+    display:block;
+    font-size:12.5px;
+    color:var(--accent-strong);
+    background:var(--code-bg);
+    border-radius:6px;
+    padding:2px 6px;
+    margin-bottom:4px;
+    width:fit-content;
+    word-break:break-word;
+  }
+  .c-name code.variant{ color:var(--ink-muted); font-size:11.5px; }
+  .c-type{ color:var(--ink-muted); font:500 12px 'IBM Plex Mono',monospace; }
+  .c-desc p{ margin:0 0 6px; color:var(--ink); }
+  .c-desc p:last-child{ margin-bottom:0; }
+  .formula{
+    display:flex;
+    gap:8px;
+    align-items:baseline;
+    flex-wrap:wrap;
+    background:var(--code-bg);
+    border:1px solid var(--border);
+    border-radius:7px;
+    padding:6px 10px;
+    margin-top:4px;
+  }
+  .formula .flabel{
+    font:600 10px/1 'IBM Plex Mono',monospace;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    color:var(--ink-muted);
+    white-space:nowrap;
+  }
+  .formula code{ font-size:12px; color:var(--accent-strong); }
+  .src-note{
+    font-size:11.5px;
+    color:var(--ink-muted);
+    margin-top:14px;
+    padding-top:12px;
+    border-top:1px dashed var(--border);
+  }
+  tr.hide{ display:none; }
+
+  .callout{
+    background:var(--accent-soft);
+    border:1px solid var(--accent);
+    border-radius:14px;
+    padding:18px 22px;
+    display:flex;
+    gap:14px;
+    align-items:flex-start;
+  }
+  .callout svg{ flex:none; color:var(--accent-strong); margin-top:2px; }
+  .callout p{ margin:0; font-size:14px; color:var(--accent-strong); }
+  .callout code{ background:rgba(255,255,255,.35); padding:1px 6px; border-radius:5px; }
+  :root[data-theme="dark"] .callout code{ background:rgba(0,0,0,.3); }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .callout code{ background:rgba(0,0,0,.3); } }
+
+  .empty-state{
+    text-align:center;
+    color:var(--ink-muted);
+    font-size:13.5px;
+    padding:28px;
+  }
+
+  footer.meta{
+    margin-top:8px;
+    text-align:center;
+    font-size:12px;
+    color:var(--ink-muted);
+  }
+
+  /* ---------- Mobile ---------- */
+  .toc-mobile{ display:none; }
+  @media (max-width:860px){
+    .layout{ grid-template-columns:1fr; gap:18px; }
+    nav.toc.desktop{ display:none; }
+    .toc-mobile{
+      display:flex;
+      gap:6px;
+      overflow-x:auto;
+      padding-bottom:6px;
+      -webkit-overflow-scrolling:touch;
+    }
+    .toc-mobile a, .toc-mobile button{
+      flex:none;
+      font:500 12px/1 'IBM Plex Sans',sans-serif;
+      color:var(--ink-muted);
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:999px;
+      padding:7px 13px;
+      text-decoration:none;
+      white-space:nowrap;
+      cursor:pointer;
+      font-family:inherit;
+    }
+    .toc-mobile button.current{
+      background:var(--accent-soft);
+      color:var(--accent-strong);
+      border-color:var(--accent);
+    }
+    .stats{ gap:8px; }
+    .stat{ min-width:100px; padding:8px 11px; }
+    section.block{ padding:18px 16px 6px; }
+  }
+</style>
+
+<div class="shell">
+
+  <header class="header">
+    <div class="eyebrow">Ficha técnica · modelo dbt</div>
+    <h1>fnl_cdp_tariffchangesaudience_pii</h1>
+    <p class="lede">
+      Una fila por cuenta en su primer cambio de tarifa. Alimenta la activación de Segment/Twilio
+      para el journey de cambio de tarifa del CDP, combinando atributos de la cuenta, comparación
+      de consumo horario y comparación de precio antes/después del cambio.
+    </p>
+    <div class="stats">
+      <div class="stat"><span class="k">Capa</span><span class="v">final · tabla Delta</span></div>
+      <div class="stat"><span class="k">Grano</span><span class="v">1 fila / cuenta</span></div>
+      <div class="stat"><span class="k">Actualización</span><span class="v">diaria</span></div>
+      <div class="stat"><span class="k">Acceso</span><span class="v">público</span></div>
+      <div class="stat"><span class="k">Datos sensibles</span><span class="v">sí · PII</span></div>
+      <div class="stat"><span class="k">Columnas</span><span class="v" id="stat-total">169</span></div>
+    </div>
+  </header>
+
+  <div class="legend">
+    <h2>Cómo leer esta ficha</h2>
+    <div class="legend-item">
+      <span class="badge badge-direct">Directa</span>
+      <p>El valor llega tal cual desde el origen: un código, un estado, una fecha o un texto guardado, sin fórmula.</p>
+    </div>
+    <div class="legend-item">
+      <span class="badge badge-calc">Calculada</span>
+      <p>El valor es el resultado de una fórmula, condición o agregación — en este modelo o en uno anterior del pipeline. Se muestra la fórmula.</p>
+    </div>
+    <div class="legend-item">
+      <div class="period-row">
+        <span class="pchip p1">P1 · punta</span>
+        <span class="pchip p2">P2 · llano</span>
+        <span class="pchip p3">P3 · valle</span>
+      </div>
+      <p style="flex-basis:100%;margin-top:6px;">Mismo código de color que en la factura eléctrica española: punta es la más cara, valle la más barata.</p>
+    </div>
+  </div>
+
+  <div class="controls">
+    <label class="search">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input id="search-input" type="text" placeholder="Buscar columna o descripción… (p. ej. “p3”, “churn”, “email”)" aria-label="Buscar columna">
+      <span class="count" id="search-count"></span>
+    </label>
+    <div class="seg" role="group" aria-label="Filtrar por tipo de columna">
+      <button type="button" class="active" data-filter="all">Todas</button>
+      <button type="button" data-filter="calc">Calculadas</button>
+      <button type="button" data-filter="direct">Directas</button>
+    </div>
+  </div>
+
+  <div class="layout">
+    <nav class="toc desktop" id="toc-desktop" aria-label="Índice de secciones"></nav>
+    <nav class="toc-mobile" id="toc-mobile" aria-label="Índice de secciones (móvil)"></nav>
+
+    <main id="main-content"></main>
+  </div>
+
+  <footer class="meta">
+    projects/oees/models/consumer/final/customer_data_platform · owners: luis.miralles@octoenergy.com, marta.juanes@octopusenergy.es
+  </footer>
+
+</div>
+
+<script>
+/* ============================================================
+   Contenido: 18 bloques, cada uno con su CTE de origen real
+   (tal y como aparece en el SQL del modelo) y sus columnas.
+   ============================================================ */
+const DATA = [
+{
+  id:"identificadores", title:"Identificadores", cte:"audience · user_identifier · SELECT final",
+  intro:"Claves de la fila. La clave primaria se genera en este mismo SELECT.",
+  rows:[
+    { names:["tariffchangeaudience_id"], calc:1, type:"STRING", desc:"<p>Clave primaria de la fila (surrogate key).</p>",
+      formula:"generate_surrogate_key(account_id, supplypoint_status, target_invoice_interval_start, target_invoice_interval_end)" },
+    { names:["account_id"], calc:0, type:"BIGINT", desc:"<p>Identificador único de la cuenta.</p>" },
+    { names:["user_id"], calc:1, type:"STRING", desc:"<p>Identificador de usuario de Segment del titular. Si hay varios titulares, se usa el rol actualizado más recientemente.</p>",
+      formula:"'es_' || account_user_id  (del titular más reciente)" },
+  ]
+},
+{
+  id:"suministro", title:"Suministro y contrato", cte:"audience",
+  intro:"Atributos de la cuenta y del punto de suministro, sin transformar.",
+  rows:[
+    { names:["cups"], calc:0, type:"STRING", desc:"<p>CUPS más reciente asociado a la cuenta, derivado de la última factura.</p>" },
+    { names:["supplypoint_status"], calc:0, type:"STRING", desc:"<p>Estado actual del punto de suministro: <code>ON_SUPPLY</code>, <code>LOST</code> o <code>WITHDRAWN</code>.</p>" },
+    { names:["tariff_type"], calc:0, type:"STRING", desc:"<p>Tipo de tarifa actual de la cuenta.</p>" },
+    { names:["days_on_supply"], calc:0, type:"BIGINT", desc:"<p>Días que la cuenta lleva de alta en suministro.</p>" },
+    { names:["period_on_supply"], calc:1, type:"STRING", desc:"<p>Bucket de antigüedad. Todas las filas de este modelo caen en <code>study_period</code> (31-180 días).</p>",
+      formula:"CASE days_on_supply WHEN ≤30 '1_month' WHEN 31-180 'study_period' ELSE 'out_of_range'" },
+    { names:["sales_channel"], calc:0, type:"STRING", desc:"<p>Canal de venta por el que se adquirió la cuenta.</p>" },
+    { names:["sales_subchannel"], calc:0, type:"STRING", desc:"<p>Subcanal o fuente concreta de captación dentro del canal.</p>" },
+    { names:["is_referral"], calc:1, type:"BOOLEAN", desc:"<p>Si el subcanal indica que la cuenta vino por referido.</p>", formula:"sales_subchannel ILIKE 'referral%'" },
+    { names:["is_dual_fuel"], calc:0, type:"BOOLEAN", desc:"<p>Si la cuenta tiene suministro de luz y de gas a la vez.</p>" },
+    { names:["province_name"], calc:0, type:"STRING", desc:"<p>Provincia del punto de suministro.</p>" },
+  ]
+},
+{
+  id:"senales-cambio", title:"Señales del cambio de tarifa", cte:"audience · consumption",
+  intro:"Fechas y tarifas del cambio, y de la factura objetivo: la primera ya con la tarifa nueva que cubre más de 20 días. Una factura de transición más corta no cuenta como factura objetivo.",
+  rows:[
+    { names:["n_tariff_changes"], calc:0, type:"BIGINT", desc:"<p>Número de cambios de tarifa a mitad de contrato. Siempre <code>1</code> en este modelo — es el filtro de audiencia.</p>" },
+    { names:["first_tariff_change_date"], calc:0, type:"DATE", desc:"<p>Fecha del primer (y único, para esta audiencia) cambio de tarifa.</p>" },
+    { names:["last_tariff_change_date"], calc:0, type:"DATE", desc:"<p>Fecha del cambio más reciente. Igual a <code>first_tariff_change_date</code> en esta audiencia.</p>" },
+    { names:["paceful_email_sent_date"], calc:1, type:"DATE", desc:"<p>Fecha programada del email de aviso del cambio. El margen de un día permite que el cambio se complete antes de confirmárselo al cliente.</p>",
+      formula:"first_tariff_change_date + 1 día  ·  NULL si esa fecha aún es futura", note:"calculada en wh_cdp_tariffchangesaudience" },
+    { names:["n_days_from_first_tariff_change"], calc:1, type:"BIGINT", desc:"<p>Días transcurridos desde el cambio de tarifa hasta hoy.</p>", formula:"DATE_DIFF(hoy, first_tariff_change_date)" },
+    { names:["tariff_before_first_change","product_code_before_first_change"], calc:0, type:"STRING", desc:"<p>Nombre de tarifa y código de producto en los que estaba el cliente justo antes del cambio (p. ej. <code>'OCTOPUS RELAX'</code>).</p>" },
+    { names:["tariff_after_first_change","product_code_after_first_change"], calc:0, type:"STRING", desc:"<p>Nombre de tarifa y código de producto a los que cambió (igual a la tarifa actual, ya que <code>n_tariff_changes = 1</code>).</p>" },
+    { names:["target_invoice_interval_start","target_invoice_interval_end"], calc:0, type:"DATE", desc:"<p>Inicio y fin del periodo de la factura objetivo: la primera facturada ya con la tarifa nueva que cubre más de 20 días. <code>NULL</code> hasta que exista esa factura, aunque ya se haya emitido una más corta (ver <code>has_first_invoice_after_tariffchange</code>).</p>" },
+    { names:["n_days_target_invoice"], calc:0, type:"BIGINT", desc:"<p>Número de días que cubre la factura objetivo. Siempre mayor que 20.</p>" },
+    { names:["n_prev_invoices"], calc:0, type:"BIGINT", desc:"<p>Número de facturas usadas como referencia “antes del cambio” — hasta 3, todas con la tarifa antigua.</p>" },
+    { names:["has_first_invoice_after_tariffchange"], calc:1, type:"BOOLEAN", desc:"<p>Si ya existe <strong>cualquier</strong> factura emitida con la tarifa nueva, sea cual sea su duración: una factura de transición corta (p. ej. 2-3 días) ya lo pone a <code>TRUE</code>. No significa que las columnas de consumo y precio estén rellenas; para eso está <code>has_first_valid_invoice_after_tariffchange</code>.</p>",
+      formula:"primera factura con interval_end_date ≥ first_tariff_change_date" },
+    { names:["has_first_valid_invoice_after_tariffchange"], calc:1, type:"BOOLEAN", desc:"<p>Si la primera factura con la tarifa nueva cubre más de 20 días. Es el filtro antes de fiarse de <code>target_total_kwh</code>, <code>total_pct_change</code>, <code>trigger_consumption_increase</code>, <code>price_after_change_real_eur</code> y el resto de columnas de consumo y precio: siguen en <code>NULL</code> hasta entonces, aunque <code>has_first_invoice_after_tariffchange</code> ya sea <code>TRUE</code>.</p>",
+      formula:"target_invoice_interval_start IS NOT NULL" },
+  ]
+},
+{
+  id:"cambio-consumo", title:"Señales de cambio de consumo", cte:"consumption",
+  intro:"Comparan la factura objetivo (la primera con la tarifa nueva que cubre más de 20 días) contra un baseline: la media ponderada por días de hasta 3 facturas anteriores, facturadas por completo con la tarifa antigua. Llegan calculadas desde wh_cdp_consumptionaudience_aggregated y son NULL hasta que existe esa factura válida.",
+  rows:[
+    { names:["has_significant_consumption_change"], calc:1, type:"BOOLEAN", desc:"<p>Si al menos una hora del día supera los dos umbrales de aumento.</p>", formula:"diff_kwh ≥ 0.3 kWh/h/día  Y  variación relativa ≥ 30%" },
+    { names:["n_hours_significant_increase"], calc:1, type:"BIGINT", desc:"<p>Número de horas del día que superan esos umbrales.</p>" },
+    { names:["peak_range_start_hour","peak_range_end_hour"], calc:1, type:"BIGINT", desc:"<p>Inicio y fin (0-23) del bloque de horas consecutivas donde se concentra el aumento frente al baseline. <strong>No es el periodo tarifario P1/P2/P3</strong> — un periodo puede abarcar mañana y noche a la vez, así que sus límites no dicen de forma fiable dónde ocurrió el aumento.</p>" },
+    { names:["peak_range_kwh_diff"], calc:1, type:"DOUBLE", desc:"<p>kWh de más (factura objetivo vs. baseline) dentro de ese bloque de horas. Para copy tipo “si mueves X kWh a las horas más baratas…”.</p>" },
+    { names:["peak_range_pct_of_consumption"], calc:1, type:"DOUBLE", desc:"<p>% del consumo total de la factura objetivo que cae en ese bloque. Es composición, no comparación contra el baseline.</p>" },
+    { names:["target_total_kwh"], calc:0, type:"DOUBLE", desc:"<p>Consumo total de la factura objetivo.</p>" },
+    { names:["baseline_total_kwh"], calc:1, type:"DOUBLE", desc:"<p>Consumo esperado en los días de la factura objetivo, según la media diaria ponderada del baseline.</p>" },
+    { names:["total_kwh_diff"], calc:1, type:"DOUBLE", desc:"<p>Diferencia de consumo total.</p>", formula:"target_total_kwh − baseline_total_kwh" },
+    { names:["total_pct_change"], calc:1, type:"DOUBLE", desc:"<p>Variación porcentual del consumo diario. Es el número que dispara <code>trigger_consumption_increase</code>.</p>", formula:"total_kwh_diff / baseline_total_kwh × 100  (tasa diaria)" },
+  ]
+},
+{
+  id:"periodos", title:"Consumo por periodo tarifario (P1/P2/P3)", cte:"consumption",
+  intro:"Punta, llano y valle. target_pX_kwh y baseline_pX_kwh están normalizados a los mismos días, así que target − baseline = diff siempre, en cualquier periodo.",
+  rows:[
+    { names:["target_p1_kwh","target_p2_kwh","target_p3_kwh"], calc:0, type:"DOUBLE", desc:"<p>kWh facturados en cada periodo de la factura objetivo. <span class='period-row' style='display:inline-flex'><span class='pchip p1'>P1</span> <span class='pchip p2'>P2</span> <span class='pchip p3'>P3</span></span></p>" },
+    { names:["baseline_p1_kwh","baseline_p2_kwh","baseline_p3_kwh"], calc:1, type:"DOUBLE", desc:"<p>Tasa diaria de cada periodo en el baseline, escalada a los días de la factura objetivo.</p>" },
+    { names:["diff_p1_kwh","diff_p2_kwh","diff_p3_kwh"], calc:1, type:"DOUBLE", desc:"<p>Diferencia por periodo.</p>", formula:"target_pX_kwh − baseline_pX_kwh" },
+    { names:["pct_change_p1","pct_change_p2","pct_change_p3"], calc:1, type:"DOUBLE", desc:"<p>Variación porcentual por periodo, sobre la tasa diaria.</p>", formula:"diff_pX_kwh / baseline_pX_kwh × 100" },
+    { names:["target_p1_pct","target_p2_pct","target_p3_pct"], calc:1, type:"DOUBLE", desc:"<p>Peso de cada periodo sobre el total de la factura objetivo. Es composición de la factura, no comparación contra el baseline.</p>" },
+    { names:["baseline_p1_pct","baseline_p2_pct","baseline_p3_pct"], calc:1, type:"DOUBLE", desc:"<p>Peso de cada periodo sobre el total del baseline. Útil comparado con <code>target_pX_pct</code>: “tu consumo en punta pasó del X% al Y% de tu factura”.</p>" },
+    { names:["top_consumption_period"], calc:1, type:"BIGINT", desc:"<p>Qué periodo (1, 2 o 3) tiene el mayor % de consumo en la factura objetivo. Composición, no comparación.</p>" },
+    { names:["top_consumption_period_pct"], calc:1, type:"DOUBLE", desc:"<p>% de la factura que corresponde a <code>top_consumption_period</code>.</p>" },
+    { names:["expensive_hours_start_hour"], calc:1, type:"BIGINT", desc:"<p>Hora de inicio (0-23) del único bloque de horas reales de mayor consumo, dentro de punta o de llano — se comparan el mejor tramo de cada uno y gana el que tenga más % del total de la factura (empate: gana punta). Solo mira P1/P2 (valle ya es barato). <strong>No</strong> son “las horas del periodo con más %”: valle también cubre todas las horas de fines de semana y festivos, así que su % no se corresponde con un tramo de horas limpio — este cálculo trabaja directamente sobre el consumo horario real. Antes esta columna era un JSON con hasta 2 tramos (uno de punta y otro de llano); se simplificó a un único tramo porque la comunicación a la que alimenta solo puede mostrar un rango de horas. <code>NULL</code> si ni el tramo ganador llega al 5% del total.</p>" },
+    { names:["expensive_hours_end_hour"], calc:1, type:"BIGINT", desc:"<p>Hora de fin (0-23) de ese mismo tramo ganador.</p>" },
+    { names:["expensive_hours_pct"], calc:1, type:"DOUBLE", desc:"<p>% del total de la factura que representa el tramo ganador (<code>expensive_hours_start_hour</code>–<code>expensive_hours_end_hour</code>).</p>" },
+  ]
+},
+{
+  id:"precio", title:"Precio: tarifa antigua vs. nueva", cte:"price_comparison",
+  intro:"Todas a precios de HOY para ambas tarifas — así se aísla el efecto de la estructura tarifaria, sin el ruido de la inflación de precios en el tiempo. Llegan desde wh_cdp_tariffchangepricecomparison. Son NULL para SUN CLUB, Octopus Zero y Octopus Flexi (no tienen tarifa fija por periodos).",
+  rows:[
+    { names:["price_before_change_eur"], calc:1, type:"DOUBLE", desc:"<p>Precio estimado con la tarifa <strong>antigua</strong>, a precios de hoy, sobre el consumo medio de las hasta 3 facturas antes del cambio. Es una estimación: asume que el patrón de consumo previo se mantiene.</p>" },
+    { names:["price_after_change_eur"], calc:1, type:"DOUBLE", desc:"<p>Precio estimado con la tarifa <strong>nueva</strong>, a precios de hoy, sobre ese mismo consumo de antes del cambio. Sirve para decidir el día 1, sin esperar a la factura real, si el cambio en sí pinta bien.</p>" },
+    { names:["is_tariff_change_cheaper"], calc:1, type:"BOOLEAN", desc:"<p>Si la tarifa nueva sale más barata que la antigua, con el mismo consumo.</p>", formula:"price_after_change_eur < price_before_change_eur" },
+    { names:["price_after_change_real_eur"], calc:1, type:"DOUBLE", desc:"<p>Precio de la tarifa nueva a precios de hoy, pero con el consumo <strong>realmente facturado</strong>. Permite comprobar, una vez hay factura válida (más de 20 días), si el cambio está siendo rentable de verdad — la estimación de arriba asumía que el consumo no cambiaría, y a menudo sí cambia. Compáralo con <code>price_before_change_normalized_eur</code>, no con <code>price_before_change_eur</code>: no tienen la misma base de días. <code>NULL</code> mientras no haya factura válida, o para SUN CLUB, Octopus Zero u Octopus Flexi.</p>" },
+    { names:["price_before_change_normalized_eur"], calc:1, type:"DOUBLE", desc:"<p>Precio estimado de la tarifa antigua, a precios de hoy, usando la tasa diaria del baseline escalada al <strong>mismo número de días</strong> que la factura real. A diferencia de <code>price_before_change_eur</code> (días de una factura media), esta es la pareja correcta de <code>price_after_change_real_eur</code>. Sigue siendo una estimación a partir del baseline, no el precio histórico real. Mismas condiciones de <code>NULL</code> que <code>price_after_change_real_eur</code>.</p>" },
+    { names:["is_tariff_change_cheaper_real"], calc:1, type:"BOOLEAN", desc:"<p>Si el cambio está resultando rentable dado lo que realmente ha pasado con el consumo, comparado sobre los mismos días que la factura real. <code>NULL</code> si falta alguno de los dos precios.</p>", formula:"price_after_change_real_eur < price_before_change_normalized_eur" },
+    { names:["kwh_to_shift_to_p3"], calc:1, type:"DOUBLE", desc:"<p>kWh recomendados mover de punta y llano a valle en la factura real, para abaratarla un poco. <strong>No</strong> es un objetivo de equilibrio para igualar <code>price_before_change_eur</code> — el cambio ya se hizo; solo se trata de reducir la factura de aquí en adelante (mover el 100% no es realista para un hogar).</p>",
+      formula:"0.6 × target_p1_kwh + 0.4 × target_p2_kwh" },
+    { names:["savings_from_shift_to_p3_eur"], calc:1, type:"DOUBLE", desc:"<p>Ahorro en € de mover esos kWh a valle, según la diferencia de precio de cada periodo contra valle, a precios de hoy.</p>" },
+  ]
+},
+{
+  id:"calidad-tarifa", title:"Calidad del cambio por tipo de tarifa", cte:"SELECT final (audience + consumption + price_comparison)",
+  intro:"Diagnóstico específico para Octo3 (por periodos) y Relax (tarifa plana) — no aplican a otras tarifas.",
+  rows:[
+    { names:["is_octo3_period_order_good"], calc:1, type:"BOOLEAN", desc:"<p>Solo Octo3. Si el consumo está bien distribuido hacia lo barato.</p>", formula:"target_p3_pct > target_p2_pct > target_p1_pct" },
+    { names:["is_octo3_consumption_well_shifted"], calc:1, type:"BOOLEAN", desc:"<p>Solo Octo3, más estricta que la anterior: el chequeo de orden puede salir <code>TRUE</code> con un margen mínimo (p. ej. P2 apenas por encima de P1) que en realidad no es un buen desplazamiento. Aquí se exige un mínimo absoluto en valle.</p>",
+      formula:"target_p3_pct ≥ 55  (mediana observada en cuentas Octo3, muestra de 30 cuentas, sept. 2026)" },
+    { names:["relax_change_assessment"], calc:1, type:"STRING", desc:"<p>Solo Relax (tarifa plana, el orden de periodos no aplica). Combina si la tarifa en sí fue mejor decisión con si el consumo real cambió. Valores: <code>both_favorable</code> (tarifa más barata y consumo igual o menor), <code>both_unfavorable</code> (tarifa más cara y consumo mayor), <code>tariff_favorable_consumption_up</code> (tarifa más barata pese a consumir más), <code>tariff_unfavorable_consumption_down</code> (tarifa más cara pese a consumir menos).</p>" },
+  ]
+},
+{
+  id:"churn", title:"Churn y riesgo", cte:"audience",
+  intro:"",
+  rows:[
+    { names:["churn_score"], calc:0, type:"DOUBLE", desc:"<p>Última probabilidad de churn del modelo de forecast.</p>" },
+    { names:["has_open_complaint"], calc:0, type:"BOOLEAN", desc:"<p>Si la cuenta tiene una queja abierta.</p>" },
+    { names:["has_failure_payment"], calc:0, type:"BOOLEAN", desc:"<p>Si la cuenta ha tenido al menos un pago fallido.</p>" },
+    { names:["is_billing_error"], calc:1, type:"BOOLEAN", desc:"<p>Si la cuenta tiene marcado un error de facturación.</p>", formula:"factura >35 días  O  retención >35 días  O  retraso de pago" },
+  ]
+},
+{
+  id:"contactos", title:"Contactos", cte:"audience",
+  intro:"",
+  rows:[
+    { names:["n_in_contacts"], calc:1, type:"BIGINT", desc:"<p>Total de contactos entrantes (llamadas + mensajes) en el periodo relevante.</p>" },
+  ]
+},
+{
+  id:"credito", title:"Crédito y facturación", cte:"audience",
+  intro:"",
+  rows:[
+    { names:["has_lower_credit"], calc:1, type:"BOOLEAN", desc:"<p>Si el crédito disponible ha caído por debajo del 50% de la factura esperada (media de las últimas 3 facturas de luz).</p>" },
+    { names:["n_bills_issued_since_lower_credit"], calc:1, type:"BIGINT", desc:"<p>Facturas de luz emitidas desde que el crédito cayó por debajo de ese 50%. <code>0</code> si <code>has_lower_credit</code> no es <code>TRUE</code>.</p>" },
+    { names:["has_hold_invoices"], calc:1, type:"BOOLEAN", desc:"<p>Si la cuenta tiene al menos una factura retenida.</p>" },
+  ]
+},
+{
+  id:"fidelizacion", title:"Fidelización y referidos", cte:"audience",
+  intro:"",
+  rows:[
+    { names:["is_win_lost_win"], calc:0, type:"BOOLEAN", desc:"<p>Si el cliente se fue de la compañía y volvió tras un tiempo (cliente recuperado).</p>" },
+    { names:["is_octoamigo"], calc:0, type:"BOOLEAN", desc:"<p>Si la cuenta forma parte del programa de referidos OctoAmigos.</p>" },
+    { names:["is_solar_hero"], calc:0, type:"BOOLEAN", desc:"<p>Si la cuenta está marcada como cliente “solar hero”.</p>" },
+    { names:["n_referrals"], calc:0, type:"BIGINT", desc:"<p>Número total de referidos hechos por la cuenta.</p>" },
+    { names:["days_to_first_referral"], calc:1, type:"BIGINT", desc:"<p>Días desde la venta del contrato hasta el primer referido en el periodo activo.</p>" },
+    { names:["is_first_referral_in_30days"], calc:1, type:"BOOLEAN", desc:"<p>Si el primer referido ocurrió dentro de los 30 días de la venta del contrato.</p>", formula:"days_to_first_referral < 30" },
+  ]
+},
+{
+  id:"productos", title:"Productos adicionales", cte:"audience",
+  intro:"",
+  rows:[
+    { names:["has_services_product"], calc:0, type:"BOOLEAN", desc:"<p>Si la cuenta tiene un producto de servicios activo.</p>" },
+    { names:["self_consumption"], calc:0, type:"BOOLEAN", desc:"<p>Si la cuenta tiene autoconsumo (placas solares).</p>" },
+  ]
+},
+{
+  id:"app", title:"Engagement en app", cte:"audience",
+  intro:"Cada métrica existe en 3 ventanas: total desde el cambio de tarifa, antes del email de aviso y después del email (hasta 30 días). Las ventanas before/after son NULL mientras paceful_email_sent_date no tenga fecha.",
+  rows:[
+    { names:["app_operating_system"], calc:0, type:"STRING", desc:"<p>Sistema operativo móvil de la sesión de app más reciente desde el cambio de tarifa.</p>" },
+    { names:["is_app_user","before_email_is_app_user","after_email_is_app_user"], calc:1, type:"BOOLEAN", desc:"<p>Si hubo al menos una sesión de app en la ventana correspondiente.</p>" },
+    { names:["n_app_sessions","before_email_n_app_sessions","after_email_n_app_sessions"], calc:1, type:"BIGINT", desc:"<p>Número de sesiones de app distintas en la ventana correspondiente.</p>" },
+    { names:["app_first_session","before_email_app_first_session","after_email_app_first_session"], calc:0, type:"DATE", desc:"<p>Primera fecha de sesión de app en la ventana correspondiente.</p>" },
+    { names:["n_days_from_app_first_session","before_email_n_days_from_app_first_session","after_email_n_days_from_app_first_session"], calc:1, type:"BIGINT", desc:"<p>Días desde esa primera sesión hasta hoy.</p>", formula:"DATE_DIFF(hoy, app_first_session)" },
+    { names:["app_last_session","before_email_app_last_session","after_email_app_last_session"], calc:0, type:"DATE", desc:"<p>Última fecha de sesión de app en la ventana correspondiente.</p>" },
+    { names:["n_app_billing_views","before_email_n_app_billing_views","after_email_n_app_billing_views"], calc:1, type:"BIGINT", desc:"<p>Vistas de la pantalla de facturación en la app, en la ventana correspondiente.</p>" },
+    { names:["n_app_tariffdetails_views","before_email_n_app_tariffdetails_views","after_email_n_app_tariffdetails_views"], calc:1, type:"BIGINT", desc:"<p>Vistas de la pantalla de detalles de tarifa en la app, en la ventana correspondiente.</p>" },
+    { names:["has_more20_app_tariffdetails_views","before_email_has_more20_app_tariffdetails_views","after_email_has_more20_app_tariffdetails_views"], calc:1, type:"BOOLEAN", desc:"<p>Si los detalles de tarifa se vieron más de 20 veces en la ventana correspondiente.</p>" },
+  ]
+},
+{
+  id:"web", title:"Engagement en web", cte:"audience",
+  intro:"Mismo patrón de 3 ventanas que en app.",
+  rows:[
+    { names:["is_web_user","before_email_is_web_user","after_email_is_web_user"], calc:1, type:"BOOLEAN", desc:"<p>Si hubo al menos una sesión web en la ventana correspondiente.</p>" },
+    { names:["web_first_session","before_email_web_first_session","after_email_web_first_session"], calc:0, type:"DATE", desc:"<p>Primera fecha de sesión web en la ventana correspondiente.</p>" },
+    { names:["n_days_from_web_first_session","before_email_n_days_from_web_first_session","after_email_n_days_from_web_first_session"], calc:1, type:"BIGINT", desc:"<p>Días desde esa primera sesión hasta hoy.</p>", formula:"DATE_DIFF(hoy, web_first_session)" },
+    { names:["web_last_session","before_email_web_last_session","after_email_web_last_session"], calc:0, type:"DATE", desc:"<p>Última fecha de sesión web en la ventana correspondiente.</p>" },
+    { names:["n_web_billing_views","before_email_n_web_billing_views","after_email_n_web_billing_views"], calc:1, type:"BIGINT", desc:"<p>Visitas a la página de facturas en la ventana correspondiente.</p>" },
+    { names:["n_web_mytariff_views","before_email_n_web_mytariff_views","after_email_n_web_mytariff_views"], calc:1, type:"BIGINT", desc:"<p>Visitas a la página “mi tarifa” en la ventana correspondiente.</p>" },
+    { names:["n_web_consumptionexplorer_views","before_email_n_web_consumptionexplorer_views","after_email_n_web_consumptionexplorer_views"], calc:1, type:"BIGINT", desc:"<p>Visitas al explorador de consumo en la ventana correspondiente.</p>" },
+  ]
+},
+{
+  id:"email-factura", title:"Engagement con el email de factura", cte:"audience",
+  intro:"Se refiere al email de aviso de factura (“Información: Tu factura energética”), no al email de cambio de tarifa. Mismo patrón de 3 ventanas.",
+  rows:[
+    { names:["is_billingemail_user","before_email_is_billingemail_user","after_email_is_billingemail_user"], calc:1, type:"BOOLEAN", desc:"<p>Si se abrió al menos un email de factura en la ventana correspondiente.</p>" },
+    { names:["first_billingemail_sent_date","before_email_first_billingemail_sent_date","after_email_first_billingemail_sent_date"], calc:0, type:"DATE", desc:"<p>Primera fecha de envío en la ventana correspondiente.</p>" },
+    { names:["last_billingemail_sent_date","before_email_last_billingemail_sent_date","after_email_last_billingemail_sent_date"], calc:0, type:"DATE", desc:"<p>Última fecha de envío en la ventana correspondiente.</p>" },
+    { names:["first_billingemail_opened_date","before_email_first_billingemail_opened_date","after_email_first_billingemail_opened_date"], calc:0, type:"DATE", desc:"<p>Primera fecha de apertura en la ventana correspondiente.</p>" },
+    { names:["last_billingemail_opened_date","before_email_last_billingemail_opened_date","after_email_last_billingemail_opened_date"], calc:0, type:"DATE", desc:"<p>Última fecha de apertura en la ventana correspondiente.</p>" },
+    { names:["n_days_from_first_billingemail_sent_date","before_email_n_days_from_first_billingemail_sent_date","after_email_n_days_from_first_billingemail_sent_date"], calc:1, type:"BIGINT", desc:"<p>Días desde el primer envío hasta hoy.</p>" },
+    { names:["n_days_from_first_billingemail_opened_date","before_email_n_days_from_first_billingemail_opened_date","after_email_n_days_from_first_billingemail_opened_date"], calc:1, type:"BIGINT", desc:"<p>Días desde la primera apertura hasta hoy.</p>" },
+    { names:["n_billingemail_opens","before_email_n_billingemail_opens","after_email_n_billingemail_opens"], calc:1, type:"BIGINT", desc:"<p>Número de aperturas de email de factura en la ventana correspondiente.</p>" },
+  ]
+},
+{
+  id:"personal", title:"Datos personales", cte:"personal_data (wh_mkt_commsdata_pii)",
+  intro:"Todas marcadas como sensibles (PII).",
+  rows:[
+    { names:["given_name"], calc:0, type:"STRING", desc:"<p>Nombre del cliente.</p>" },
+    { names:["first_family_name","second_family_name"], calc:0, type:"STRING", desc:"<p>Primer y segundo apellido.</p>" },
+    { names:["email"], calc:0, type:"STRING", desc:"<p>Correo electrónico.</p>" },
+    { names:["mobile"], calc:0, type:"STRING", desc:"<p>Teléfono móvil.</p>" },
+    { names:["address"], calc:0, type:"STRING", desc:"<p>Dirección postal usada para comunicaciones.</p>" },
+    { names:["n_emails_last_30d"], calc:1, type:"BIGINT", desc:"<p>Número de emails enviados al cliente en los últimos 30 días.</p>" },
+  ]
+},
+{
+  id:"otros", title:"Otros", cte:"tariff_source (wh_commercial_tariffchangesource)",
+  intro:"",
+  rows:[
+    { names:["tariffchange_source"], calc:1, type:"STRING", desc:"<p>Fuente atribuida del cambio de tarifa: <code>ops_interaction</code>, <code>web_to_ops</code>, <code>web_interaction</code> o <code>unknown</code>. Se añadirá <code>form_interaction</code> cuando haya datos de Typeform disponibles.</p>" },
+  ]
+},
+{
+  id:"activacion", title:"Activación y experimento", cte:"SELECT final",
+  intro:"Las tres columnas que decide todo lo que sale hacia Segment.",
+  rows:[
+    { names:["trigger_consumption_increase"], calc:1, type:"BOOLEAN", desc:"<p><strong>Bandera principal de activación.</strong> Cuenta en su primer cambio de tarifa cuya factura objetivo —la primera válida con la tarifa nueva, más de 20 días; una de transición más corta no cuenta— muestra un consumo diario al menos un 30% mayor que el baseline de hasta 3 facturas anteriores.</p>",
+      formula:"COALESCE(total_pct_change ≥ 30, FALSE)  AND  n_tariff_changes = 1" },
+    { names:["is_control_group"], calc:1, type:"BOOLEAN", desc:"<p>Holdout determinista del 15% que NO debe enviarse a Segment. Al ser determinista sobre <code>account_id</code>, la misma cuenta siempre cae en el mismo grupo.</p>",
+      formula:"PMOD(HASH(account_id), 100) < 15" },
+    { names:["experiment_group"], calc:1, type:"STRING", desc:"<p><code>control</code> (el 15% de holdout) o <code>treatment</code> (el 85% restante). Para el análisis post-campaña.</p>" },
+  ]
+},
+];
+
+/* ============================================================
+   Render
+   ============================================================ */
+const main = document.getElementById('main-content');
+const tocDesktop = document.getElementById('toc-desktop');
+const tocMobile = document.getElementById('toc-mobile');
+
+function chipHtml(n, i){
+  return `<code class="${i===0?'':'variant'}">${n}</code>`;
+}
+
+DATA.forEach(block=>{
+  const section = document.createElement('section');
+  section.className = 'block';
+  section.id = block.id;
+
+  const introHtml = block.intro ? `<p class="intro">${block.intro}</p>` : '';
+
+  const rowsHtml = block.rows.map(r=>{
+    const searchBlob = (r.names.join(' ') + ' ' + r.desc + ' ' + (r.formula||'')).toLowerCase();
+    const formulaHtml = r.formula ? `
+      <div class="formula">
+        <span class="flabel">Fórmula</span>
+        <code>${r.formula}</code>
+      </div>` : '';
+    const noteHtml = r.note ? `<div class="src-note">${r.note}</div>` : '';
+    return `
+      <tr data-calc="${r.calc}" data-search="${searchBlob.replace(/"/g,'&quot;')}">
+        <td class="c-name">${r.names.map(chipHtml).join('')}</td>
+        <td><span class="badge ${r.calc? 'badge-calc':'badge-direct'}">${r.calc? 'Calculada':'Directa'}</span></td>
+        <td class="c-type">${r.type}</td>
+        <td class="c-desc">${r.desc}${formulaHtml}${noteHtml}</td>
+      </tr>`;
+  }).join('');
+
+  section.innerHTML = `
+    <div class="head">
+      <h2>${block.title}</h2>
+      <span class="cte mono">CTE: ${block.cte}</span>
+    </div>
+    ${introHtml}
+    <div class="table-scroll">
+      <table>
+        <colgroup>
+          <col class="col-name"><col class="col-badge"><col class="col-type"><col class="col-desc">
+        </colgroup>
+        <thead>
+          <tr><th>Columna</th><th>Origen</th><th>Tipo</th><th>Descripción</th></tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>
+    <p class="empty-state" hidden>Sin columnas que coincidan con el filtro en este bloque.</p>
+  `;
+  main.appendChild(section);
+
+  [tocDesktop, tocMobile].forEach(nav=>{
+    // Use <button>, not <a>: htmlpreview injects <base href="gist raw URL">,
+    // so href="#id" resolves to the raw file and leaves the preview.
+    const a = document.createElement('button');
+    a.type = 'button';
+    a.textContent = block.title;
+    a.dataset.sectionId = block.id;
+    a.addEventListener('click', ()=>{
+      const target = document.getElementById(block.id);
+      if (target) target.scrollIntoView({ behavior:'smooth', block:'start' });
+      document.querySelectorAll('#toc-desktop button, #toc-mobile button').forEach(b=>{
+        b.classList.toggle('current', b.dataset.sectionId === block.id);
+      });
+    });
+    nav.appendChild(a);
+  });
+});
+
+// Nota final (Segment sync)
+const callout = document.createElement('div');
+callout.className = 'callout';
+callout.innerHTML = `
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+  <p>Segment solo debe sincronizar las filas donde <code>trigger_consumption_increase = TRUE</code> <strong>y</strong> <code>is_control_group = FALSE</code>.</p>
+`;
+main.appendChild(callout);
+
+/* ============================================================
+   Búsqueda + filtro
+   ============================================================ */
+const searchInput = document.getElementById('search-input');
+const searchCount = document.getElementById('search-count');
+const segButtons = document.querySelectorAll('.seg button');
+let currentFilter = 'all';
+
+function applyFilters(){
+  const q = searchInput.value.trim().toLowerCase();
+  let visible = 0, total = 0;
+
+  document.querySelectorAll('section.block').forEach(section=>{
+    let sectionVisible = 0;
+    const rows = section.querySelectorAll('tbody tr');
+    rows.forEach(row=>{
+      total++;
+      const matchesQuery = !q || row.dataset.search.includes(q);
+      const matchesFilter =
+        currentFilter === 'all' ||
+        (currentFilter === 'calc' && row.dataset.calc === '1') ||
+        (currentFilter === 'direct' && row.dataset.calc === '0');
+      const show = matchesQuery && matchesFilter;
+      row.classList.toggle('hide', !show);
+      if (show){ sectionVisible++; visible++; }
+    });
+    section.style.display = sectionVisible === 0 ? 'none' : '';
+    section.querySelector('.empty-state').hidden = true;
+  });
+
+  searchCount.textContent = q || currentFilter !== 'all' ? `${visible} / ${total}` : '';
+}
+
+searchInput.addEventListener('input', applyFilters);
+segButtons.forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    segButtons.forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = btn.dataset.filter;
+    applyFilters();
+  });
+});
+
+/* ============================================================
+   Resaltar sección activa en el índice
+   ============================================================ */
+const tocLinks = document.querySelectorAll('#toc-desktop button, #toc-mobile button');
+const observer = new IntersectionObserver((entries)=>{
+  entries.forEach(entry=>{
+    if (entry.isIntersecting){
+      tocLinks.forEach(a=>{
+        a.classList.toggle('current', a.dataset.sectionId === entry.target.id);
+      });
+    }
+  });
+}, { rootMargin: '-15% 0px -70% 0px' });
+document.querySelectorAll('section.block').forEach(s=>observer.observe(s));
+</script>
